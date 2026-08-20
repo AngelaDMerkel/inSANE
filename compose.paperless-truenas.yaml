@@ -57,7 +57,7 @@ services:
       PAPERLESS_CONSUMER_STABILITY_DELAY: "5"
 
   insane:
-    image: ${INSANE_IMAGE:?Set INSANE_IMAGE to the published Docker Hub tag in .env}
+    image: ${INSANE_IMAGE:-docker.io/angeladmerkel/insane:1.0.0-amd64}
     platform: linux/amd64
     pull_policy: always
     container_name: insane
@@ -71,6 +71,9 @@ services:
       # This is the exact same host directory mounted as Paperless's consume directory.
       - /mnt/Array/databases/paperless/consume:/data/output
     environment:
+      # The entrypoint prepares its mounts, then runs inSANE itself as Apps.
+      PUID: ${PAPERLESS_UID:-568}
+      PGID: ${PAPERLESS_GID:-568}
       InSane__Storage__StatePath: /data/state
       InSane__Storage__OutputPath: /data/output
       InSane__Scanner__EnableDemo: "false"

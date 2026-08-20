@@ -65,6 +65,12 @@ api.MapGet("/health", (StoragePaths paths) => Results.Ok(new
 {
     status = "ok",
     version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "development",
+    runtime = new
+    {
+        user = Environment.UserName,
+        uid = RuntimeIdentity.EffectiveUid,
+        gid = RuntimeIdentity.EffectiveGid
+    },
     storage = new
     {
         state = "writable",

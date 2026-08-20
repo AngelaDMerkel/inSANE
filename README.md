@@ -40,6 +40,9 @@ it is not the product or API foundation.
   [`docs/physical-scanner-buttons.md`](docs/physical-scanner-buttons.md).
 - Persistent state under `/data/state` and completed documents under
   `/data/output`, both intended to be bind-mounted.
+- A TrueNAS-aware entrypoint repairs ownership when required, then runs the
+  inSANE/NAPS2 process as the standard Apps identity (`568:568`). USB device
+  groups are supplemental; the application never remains UID 0.
 - An optional demonstration scanner for exercising the complete workflow
   without hardware.
 
@@ -79,7 +82,7 @@ Use Command on macOS or Ctrl on Windows and Linux.
 Use [`compose.paperless-truenas.yaml`](compose.paperless-truenas.yaml) to run
 inSANE with the supplied Paperless-ngx services. Copy
 [`.env.truenas.example`](.env.truenas.example) to `.env`, fill in the published
-image and existing Paperless database password, and follow the
+image override if needed and existing Paperless database password, and follow the
 [TrueNAS deployment runbook](docs/truenas-paperless-deployment.md).
 
 The integrated compose maps:

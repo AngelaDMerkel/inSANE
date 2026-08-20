@@ -10,6 +10,8 @@ services:
       - ./data/state:/data/state
       - ./data/output:/data/output
     environment:
+      PUID: "568"
+      PGID: "568"
       InSane__Storage__StatePath: /data/state
       InSane__Storage__OutputPath: /data/output
       InSane__Scanner__EnableDemo: "true"

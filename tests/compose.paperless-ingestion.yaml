@@ -57,6 +57,8 @@ services:
       - ${INSANE_SMOKE_ROOT:?Set INSANE_SMOKE_ROOT}/insane-state:/data/state
       - ${INSANE_SMOKE_ROOT:?Set INSANE_SMOKE_ROOT}/consume:/data/output
     environment:
+      PUID: "568"
+      PGID: "568"
       InSane__Storage__StatePath: /data/state
       InSane__Storage__OutputPath: /data/output
       InSane__Scanner__EnableDemo: "true"

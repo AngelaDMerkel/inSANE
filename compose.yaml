@@ -12,6 +12,8 @@ services:
       - /mnt/Array/databases/insane:/data/state
       - /mnt/Array/databases/paperless/consume:/data/output
     environment:
+      PUID: "568"
+      PGID: "568"
       InSane__Storage__StatePath: /data/state
       InSane__Storage__OutputPath: /data/output
       InSane__Scanner__EnableDemo: "false"

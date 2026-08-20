@@ -43,7 +43,8 @@ def wait_for_health(base: str, timeout: int = 180) -> None:
     while time.monotonic() < deadline:
         try:
             health = request_json(base, "/api/v1/health")
-            if health["status"] == "ok" and health["storage"]["output"] == "writable":
+            if (health["status"] == "ok" and health["storage"]["output"] == "writable"
+                    and health["runtime"]["uid"] == 568 and health["runtime"]["gid"] == 568):
                 return
         except (OSError, SmokeFailure, KeyError):
             pass

@@ -49,10 +49,14 @@ install -d -o 568 -g 568 -m 2775 /mnt/Array/databases/insane
 install -d -o 568 -g 568 -m 2775 /mnt/Array/databases/paperless/consume
 ```
 
-inSANE verifies both bind mounts at startup and refuses to start if either is
-not writable. Final exports are renamed atomically into the consume directory
-and receive mode `0664`; Paperless's mapped identity can read them and can
-remove them after ingestion because it has write access to the directory.
+inSANE's entrypoint starts as root only long enough to create the bind-mount
+directories, migrate existing inSANE state ownership, and discover the numeric
+groups used by USB device nodes. It then replaces itself with the inSANE/NAPS2
+process at effective UID/GID `568:568`. The health endpoint reports that
+effective identity and refuses readiness if either bind mount is not writable.
+Final exports are renamed atomically into the consume directory and receive mode
+`0664`; Paperless's mapped identity can read them and can remove them after
+ingestion because it has write access to the directory.
 
 ## 3. Configure secrets and image
 
@@ -64,7 +68,8 @@ cp .env.truenas.example .env
 
 Set:
 
-- `INSANE_IMAGE` to the published `linux/amd64` Docker Hub tag;
+- `INSANE_IMAGE` defaults to the published `linux/amd64` tag
+  `docker.io/angeladmerkel/insane:1.0.0-amd64`;
 - `PAPERLESS_DB_PASSWORD` to the existing database password;
 - `PAPERLESS_SECRET_KEY` to a long, stable random value;
 - `PAPERLESS_UID` and `PAPERLESS_GID` to the identity that owns the Paperless

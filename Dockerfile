@@ -8,10 +8,11 @@ RUN dotnet publish src/InSane.Server/InSane.Server.csproj -c Release -o /app --n
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-bookworm-slim AS runtime
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends sane-utils libsane1 libsane-common libusb-1.0-0 curl \
+    && apt-get install -y --no-install-recommends sane-utils libsane1 libsane-common libusb-1.0-0 curl gosu \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app ./
+COPY docker/entrypoint.sh /usr/local/bin/insane-entrypoint
 RUN mkdir -p /data/state /data/output
 ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_EnableDiagnostics=0 \
@@ -21,4 +22,5 @@ EXPOSE 8080
 VOLUME ["/data/state", "/data/output"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl --fail --silent http://localhost:8080/api/v1/health || exit 1
-ENTRYPOINT ["dotnet", "inSANE.dll"]
+ENTRYPOINT ["insane-entrypoint"]
+CMD ["dotnet", "inSANE.dll"]

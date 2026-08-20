@@ -93,6 +93,8 @@ def main() -> int:
 
     _, _, health = request_json(base, "/api/v1/health")
     require(health["status"] == "ok", "health status is not ok")
+    require(health["runtime"]["uid"] == 568 and health["runtime"]["gid"] == 568,
+            f"runtime identity is not the TrueNAS Apps user: {health['runtime']}")
     require(health["storage"]["state"] == "writable", "state mount is not writable")
     require(health["storage"]["output"] == "writable", "output mount is not writable")
     _, _, system = request_json(base, "/api/v1/system")
