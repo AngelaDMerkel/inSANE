@@ -80,9 +80,9 @@ Use Command on macOS or Ctrl on Windows and Linux.
 ## TrueNAS and Paperless deployment
 
 Use [`compose.paperless-truenas.yaml`](compose.paperless-truenas.yaml) to run
-inSANE with the supplied Paperless-ngx services. Copy
-[`.env.truenas.example`](.env.truenas.example) to `.env`, fill in the published
-image override if needed and existing Paperless database password, and follow the
+inSANE with the supplied Paperless-ngx services. It preserves the existing
+Paperless database credential supplied for this deployment and fixes both
+shared-directory consumers to Apps UID/GID `568`. Follow the
 [TrueNAS deployment runbook](docs/truenas-paperless-deployment.md).
 
 The integrated compose maps:

@@ -18,7 +18,7 @@ services:
     environment:
       POSTGRES_DB: paperless
       POSTGRES_USER: paperless
-      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD:?Set PAPERLESS_DB_PASSWORD in .env}
+      POSTGRES_PASSWORD: paperless_password # Preserve the existing database credential.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"]
       interval: 10s
@@ -44,20 +44,19 @@ services:
       PAPERLESS_REDIS: redis://broker:6379
       PAPERLESS_DBHOST: db
       PAPERLESS_DBUSER: paperless
-      PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD:?Set PAPERLESS_DB_PASSWORD in .env}
-      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:?Set PAPERLESS_SECRET_KEY in .env}
+      PAPERLESS_DBPASS: paperless_password
       PAPERLESS_CONSUMPTION_DIR: /usr/src/paperless/consume
       PAPERLESS_TIME_ZONE: America/New_York
       PAPERLESS_OCR_LANGUAGE: eng
-      USERMAP_UID: ${PAPERLESS_UID:-568}
-      USERMAP_GID: ${PAPERLESS_GID:-568}
+      USERMAP_UID: "568"
+      USERMAP_GID: "568"
       # Polling avoids missed Docker/ZFS or network-filesystem notifications.
       PAPERLESS_CONSUMER_POLLING_INTERVAL: "5"
       # inSANE publishes atomically; this adds a conservative consumer guard.
       PAPERLESS_CONSUMER_STABILITY_DELAY: "5"
 
   insane:
-    image: ${INSANE_IMAGE:-docker.io/angeladmerkel/insane:1.0.0-amd64}
+    image: docker.io/angeladmerkel/insane:1.0.0-amd64
     platform: linux/amd64
     pull_policy: always
     container_name: insane
@@ -72,8 +71,8 @@ services:
       - /mnt/Array/databases/paperless/consume:/data/output
     environment:
       # The entrypoint prepares its mounts, then runs inSANE itself as Apps.
-      PUID: ${PAPERLESS_UID:-568}
-      PGID: ${PAPERLESS_GID:-568}
+      PUID: "568"
+      PGID: "568"
       InSane__Storage__StatePath: /data/state
       InSane__Storage__OutputPath: /data/output
       InSane__Scanner__EnableDemo: "false"

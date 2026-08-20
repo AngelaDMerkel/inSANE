@@ -58,32 +58,21 @@ Final exports are renamed atomically into the consume directory and receive mode
 `0664`; Paperless's mapped identity can read them and can remove them after
 ingestion because it has write access to the directory.
 
-## 3. Configure secrets and image
+## 3. Confirm credentials and image
 
-Copy the example environment file beside the compose file:
-
-```sh
-cp .env.truenas.example .env
-```
-
-Set:
-
-- `INSANE_IMAGE` defaults to the published `linux/amd64` tag
-  `docker.io/angeladmerkel/insane:1.0.0-amd64`;
-- `PAPERLESS_DB_PASSWORD` to the existing database password;
-- `PAPERLESS_SECRET_KEY` to a long, stable random value;
-- `PAPERLESS_UID` and `PAPERLESS_GID` to the identity that owns the Paperless
-  datasets (the supplied TrueNAS default is `568:568`).
-
-Do not commit `.env`; it is ignored by this repository.
+The compose is intentionally self-contained for this existing stack. It uses
+`docker.io/angeladmerkel/insane:1.0.0-amd64`, preserves the current Paperless
+database credential `paperless_password`, and fixes the shared-directory
+identity to `568:568`. Rotate the database password separately after deployment;
+changing only the compose value does not change an initialized Postgres role.
 
 ## 4. Validate and start
 
 ```sh
-docker compose --env-file .env -f compose.paperless-truenas.yaml config --quiet
-docker compose --env-file .env -f compose.paperless-truenas.yaml pull
-docker compose --env-file .env -f compose.paperless-truenas.yaml up -d
-docker compose --env-file .env -f compose.paperless-truenas.yaml ps
+docker compose -f compose.paperless-truenas.yaml config --quiet
+docker compose -f compose.paperless-truenas.yaml pull
+docker compose -f compose.paperless-truenas.yaml up -d
+docker compose -f compose.paperless-truenas.yaml ps
 ```
 
 The Paperless consumer is explicitly set to `/usr/src/paperless/consume` and
@@ -95,9 +84,6 @@ that may not propagate reliably through Docker, ZFS, NFS, or SMB layers.
 Run the included non-document probe:
 
 ```sh
-set -a
-. ./.env
-set +a
 ./scripts/verify-truenas-stack.sh compose.paperless-truenas.yaml
 ```
 
@@ -123,7 +109,7 @@ Open `http://TRUENAS-IP:51234`, select the ES-400 II, and run the full
 Save a uniquely named PDF from inSANE, then watch Paperless:
 
 ```sh
-docker compose --env-file .env -f compose.paperless-truenas.yaml logs -f webserver
+docker compose -f compose.paperless-truenas.yaml logs -f webserver
 ```
 
 Pass only when the log reports that exact filename's consumption finished and
