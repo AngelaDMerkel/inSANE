@@ -96,7 +96,9 @@ Paperless mounts that same host directory at `/usr/src/paperless/consume` and
 uses a five-second polling interval so ingestion does not depend on Docker/ZFS
 filesystem notifications. `scripts/verify-truenas-stack.sh` proves that inSANE
 can write the bind mount and that Paperless's mapped UID/GID can read and remove
-the same probe file.
+the same probe file. Define a unique, stable `PAPERLESS_SECRET_KEY` in
+Portainer's stack environment before deployment; current Paperless releases
+refuse to start with the old default.
 
 The initial USB proof uses `privileged: true`, which makes stable access
 possible even when the scanner's `/dev/bus/usb/BBB/DDD` address changes after a

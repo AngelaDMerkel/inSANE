@@ -45,6 +45,8 @@ services:
       PAPERLESS_DBHOST: db
       PAPERLESS_DBUSER: paperless
       PAPERLESS_DBPASS: paperless_password
+      # Define this in Portainer's stack environment; keep it stable across redeployments.
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:?Set a unique PAPERLESS_SECRET_KEY in Portainer}
       PAPERLESS_CONSUMPTION_DIR: /usr/src/paperless/consume
       PAPERLESS_TIME_ZONE: America/New_York
       PAPERLESS_OCR_LANGUAGE: eng

@@ -63,8 +63,10 @@ ingestion because it has write access to the directory.
 The compose is intentionally self-contained for this existing stack. It uses
 `docker.io/angeladmerkel/insane:1.0.0-amd64`, preserves the current Paperless
 database credential `paperless_password`, and fixes the shared-directory
-identity to `568:568`. Rotate the database password separately after deployment;
-changing only the compose value does not change an initialized Postgres role.
+identity to `568:568`. Define a unique, stable `PAPERLESS_SECRET_KEY` in
+Portainer's stack environment before deploying. Rotate the database password
+separately after deployment; changing only the compose value does not change an
+initialized Postgres role.
 
 ## 4. Validate and start
 
