@@ -1,0 +1,15 @@
+services:
+  insane:
+    build:
+      context: .
+    image: insane:demo
+    container_name: insane-demo
+    ports:
+      - "51234:8080"
+    volumes:
+      - ./data/state:/data/state
+      - ./data/output:/data/output
+    environment:
+      InSane__Storage__StatePath: /data/state
+      InSane__Storage__OutputPath: /data/output
+      InSane__Scanner__EnableDemo: "true"

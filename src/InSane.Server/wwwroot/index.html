@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#fffdf9">
+  <meta name="application-name" content="inSANE">
+  <meta name="description" content="A web document builder for network and USB scanners.">
+  <title>inSANE</title>
+  <link rel="icon" href="/brand/insane-favicon.svg?v=base-06" type="image/svg+xml">
+  <link rel="manifest" href="/site.webmanifest">
+  <link rel="stylesheet" href="/app.css?v=workbench-14">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand">
+        <img class="brand-lockup" src="/brand/insane-header-lockup.svg?v=base-06" alt="inSANE">
+      </div>
+    </header>
+
+    <main class="workbench">
+      <aside class="scan-sidebar" aria-label="Scan settings">
+        <div class="sidebar-heading">
+          <h1>Settings</h1>
+        </div>
+
+        <div class="settings-form">
+          <label class="field">
+            <span>Device</span>
+            <select id="device"><option>Finding scanners…</option></select>
+          </label>
+
+          <div class="field">
+            <span>Saved profile</span>
+            <div class="profile-row">
+              <select id="profile"><option value="">Custom</option></select>
+              <button id="save-profile" class="icon-button" type="button" title="Save current settings as a profile" aria-label="Save scan profile">＋</button>
+              <button id="manage-profiles" class="icon-button profile-manage" type="button" title="Manage scan profiles" aria-label="Manage scan profiles">•••</button>
+            </div>
+          </div>
+
+          <div class="settings-divider"></div>
+
+          <label class="field">
+            <span>Paper source</span>
+            <select id="paper-source">
+              <option value="duplex">Duplex ADF</option>
+              <option value="feeder">Feeder</option>
+              <option value="flatbed">Flatbed</option>
+            </select>
+          </label>
+
+          <div class="field-grid">
+            <label class="field">
+              <span>Page size</span>
+              <select id="page-size">
+                <option value="letter">US Letter</option>
+                <option value="legal">US Legal</option>
+                <option value="a4">A4</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Resolution</span>
+              <select id="resolution">
+                <option value="200">200 dpi</option>
+                <option value="300" selected>300 dpi</option>
+                <option value="600">600 dpi</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Bit depth</span>
+            <select id="bit-depth">
+              <option value="color">Colour</option>
+              <option value="grayscale">Greyscale</option>
+              <option value="blackAndWhite">Black &amp; white</option>
+            </select>
+          </label>
+
+          <fieldset class="enhancements">
+            <legend>Enhancements</legend>
+            <label class="check-field"><input id="auto-deskew" type="checkbox" checked><span>Automatically deskew pages</span></label>
+            <label class="check-field"><input id="discard-blank-pages" type="checkbox"><span>Discard blank pages</span></label>
+          </fieldset>
+
+          <details class="advanced-options">
+            <summary>Advanced options</summary>
+            <div class="advanced-fields">
+              <label class="range-field">
+                <span>Brightness <output id="brightness-value" for="brightness">0</output></span>
+                <input id="brightness" type="range" min="-1000" max="1000" step="50" value="0">
+              </label>
+              <label class="range-field">
+                <span>Contrast <output id="contrast-value" for="contrast">0</output></span>
+                <input id="contrast" type="range" min="-1000" max="1000" step="50" value="0">
+              </label>
+              <label class="field compact-field">
+                <span>Blank-page white threshold</span>
+                <div class="number-field"><input id="blank-white-threshold" type="number" min="0" max="100" value="70"><span>%</span></div>
+              </label>
+              <label class="field compact-field">
+                <span>Blank-page coverage threshold</span>
+                <div class="number-field"><input id="blank-coverage-threshold" type="number" min="0" max="100" value="15"><span>%</span></div>
+              </label>
+            </div>
+          </details>
+        </div>
+
+        <div class="scan-actions">
+          <button id="scan" class="button scan-button" type="button" title="Scan pages (⌘/Ctrl + Enter)" aria-keyshortcuts="Meta+Enter Control+Enter">
+            <span class="scan-dot" aria-hidden="true"></span><span id="scan-label">Scan pages</span>
+          </button>
+          <div id="device-status" class="device-status"><span class="status-dot"></span>Connecting to scanner</div>
+          <div id="scan-progress" class="scan-progress" hidden>
+            <div class="scan-progress-row"><span id="progress-label">Receiving page 1</span><span id="progress-value">0%</span></div>
+            <progress id="progress" max="1" value="0"></progress>
+          </div>
+          <div id="scan-error" class="scan-error" hidden>
+            <strong id="scan-error-title">Scan interrupted</strong>
+            <p id="scan-error-message"></p>
+            <p id="scan-error-recovery"></p>
+            <div class="button-pair">
+              <button id="dismiss-scan-error" class="button quiet small" type="button">Dismiss</button>
+              <button id="retry-scan" class="button primary small" type="button">Retry</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="document-workspace" aria-label="Document canvas">
+        <div id="canvas" class="canvas">
+          <div class="canvas-controls" aria-label="Canvas controls">
+            <div class="zoom-controls">
+              <button id="zoom-out" class="icon-button compact" type="button" title="Zoom out (⌘/Ctrl −)" aria-label="Zoom out">−</button>
+              <span id="zoom-label">72%</span>
+              <button id="zoom-in" class="icon-button compact" type="button" title="Zoom in (⌘/Ctrl +)" aria-label="Zoom in">＋</button>
+            </div>
+          </div>
+          <div class="canvas-viewport">
+            <div id="empty-canvas" class="empty-canvas">
+              <div class="empty-icon" aria-hidden="true">▤</div>
+              <h2>Build a document</h2>
+              <p>Choose a scanner and start a scan. Pages will collect here until you decide to save them.</p>
+              <button id="empty-scan" class="button primary" type="button">Scan first pages</button>
+            </div>
+            <div id="page-stage" class="page-stage" hidden>
+              <img id="page-image" alt="Selected scanned page" draggable="false">
+              <div id="crop-overlay" class="crop-overlay" aria-label="Crop frame. Drag the frame to move it or drag a handle to resize it." hidden>
+                <span class="crop-handle nw" data-crop-handle="nw"></span>
+                <span class="crop-handle n" data-crop-handle="n"></span>
+                <span class="crop-handle ne" data-crop-handle="ne"></span>
+                <span class="crop-handle e" data-crop-handle="e"></span>
+                <span class="crop-handle se" data-crop-handle="se"></span>
+                <span class="crop-handle s" data-crop-handle="s"></span>
+                <span class="crop-handle sw" data-crop-handle="sw"></span>
+                <span class="crop-handle w" data-crop-handle="w"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section class="filmstrip" aria-label="Scanned pages">
+          <div class="filmstrip-heading">
+            <strong>Pages</strong>
+            <span id="page-count" class="count">0</span>
+          </div>
+          <div id="page-list" class="page-list"></div>
+        </section>
+      </section>
+
+      <aside class="document-sidebar" aria-label="Document and history">
+        <div class="tabs" role="tablist">
+          <button id="inspector-tab" class="tab active" role="tab" aria-selected="true">Document</button>
+          <button id="history-tab" class="tab" role="tab" aria-selected="false">History</button>
+        </div>
+
+        <div id="inspector-panel" class="inspector-panel">
+          <section class="session-section">
+            <label class="field">
+              <span>Document title</span>
+              <input id="document-title" value="Untitled scan" aria-label="Document title">
+            </label>
+            <label class="field">
+              <span>File name</span>
+              <div class="file-field"><input id="output-filename" value="untitled-scan" aria-label="Output file name"><span id="output-extension">.pdf</span></div>
+            </label>
+            <label class="field">
+              <span>Format</span>
+              <select id="output-format">
+                <optgroup label="Documents">
+                  <option value="pdf">PDF document</option>
+                  <option value="tiff">TIFF document</option>
+                </optgroup>
+                <optgroup label="Page images">
+                  <option value="zip-png">ZIP · PNG pages</option>
+                  <option value="zip-jpeg">ZIP · JPEG pages</option>
+                </optgroup>
+              </select>
+            </label>
+            <div id="export-scope" class="export-scope" hidden>
+              <span><strong id="export-scope-count">0 pages selected</strong><small>Save and download use this selection</small></span>
+              <button id="clear-page-selection" class="button quiet small" type="button">Use all</button>
+            </div>
+            <p id="document-status" class="document-status">Building document</p>
+            <div class="document-actions">
+              <button id="save-document" class="button primary" type="button" title="Save document (⌘/Ctrl S)" aria-keyshortcuts="Meta+S Control+S">Save PDF</button>
+              <button id="download-document" class="button quiet" type="button" title="Download document (⌘/Ctrl Shift S)" aria-keyshortcuts="Meta+Shift+S Control+Shift+S">Download PDF</button>
+            </div>
+            <button id="new-session" class="button quiet wide" type="button" title="Start new document (⌘/Ctrl N)" aria-keyshortcuts="Meta+N Control+N">Start new document</button>
+          </section>
+
+          <section id="page-management" class="page-management" hidden>
+            <div class="page-tools-header">
+              <div><strong id="selected-page-title">Page 1</strong><span id="selected-page-meta"></span></div>
+              <span id="crop-state" class="page-state">Full page</span>
+            </div>
+            <div class="page-tool-grid">
+              <button id="rotate-left" class="tool-button" type="button" title="Rotate left ([)" aria-keyshortcuts="[" disabled>
+                <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg> Left
+              </button>
+              <button id="rotate-right" class="tool-button" type="button" title="Rotate right (])" aria-keyshortcuts="]" disabled>
+                <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"></path><path d="M21 3v5h-5"></path></svg> Right
+              </button>
+              <button id="crop-toggle" class="tool-button" type="button" title="Crop page (C)" aria-keyshortcuts="c" disabled><span>⌗</span> Crop</button>
+            </div>
+            <div id="crop-controls" class="crop-controls" hidden>
+              <p class="crop-hint">Drag the frame or its handles directly on the page.</p>
+              <label id="crop-selected-option" class="check-field crop-selected-option" hidden>
+                <input id="crop-apply-selected" type="checkbox">
+                <span id="crop-selected-label">Apply to selected pages</span>
+              </label>
+              <div class="button-pair">
+                <button id="crop-reset" class="button quiet small" type="button">Reset frame</button>
+                <button id="crop-apply" class="button primary small" type="button" title="Apply crop (Enter)" aria-keyshortcuts="Enter">Apply crop</button>
+              </div>
+            </div>
+            <button id="delete-page" class="tool-button danger wide remove-page" type="button" title="Remove page (Backspace or Delete)" aria-keyshortcuts="Backspace Delete" disabled>Remove page</button>
+          </section>
+        </div>
+
+        <div id="history-panel" class="history-panel" hidden>
+          <div id="history-list" class="history-list"></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <dialog id="profile-dialog">
+    <form id="profile-form" method="dialog">
+      <div class="dialog-heading"><span class="eyebrow">Device profile</span><h2>Save scan settings</h2></div>
+      <label>Profile name<input id="profile-name" required placeholder="Duplex Letter"></label>
+      <div class="dialog-actions">
+        <button class="button quiet" type="button" id="profile-cancel">Cancel</button>
+        <button class="button primary" type="submit">Save profile</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="profile-manager-dialog" class="profile-manager-dialog">
+    <div class="profile-manager-shell">
+      <div class="dialog-heading"><h2>Scan profiles</h2></div>
+      <div id="profile-manager-list" class="profile-manager-list"></div>
+      <div class="dialog-actions">
+        <button class="button quiet" type="button" id="profile-manager-close">Done</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js?v=workbench-13" defer></script>
+</body>
+</html>

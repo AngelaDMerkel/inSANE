@@ -1,0 +1,67 @@
+services:
+  broker:
+    image: docker.io/library/redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  db:
+    image: docker.io/library/postgres:16
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: paperless-smoke-password
+    volumes:
+      - ${INSANE_SMOKE_ROOT:?Set INSANE_SMOKE_ROOT}/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    depends_on:
+      db:
+        condition: service_healthy
+      broker:
+        condition: service_healthy
+    volumes:
+      - ${INSANE_SMOKE_ROOT:?Set INSANE_SMOKE_ROOT}/paperless-data:/usr/src/paperless/data
+      - ${INSANE_SMOKE_ROOT:?Set INSANE_SMOKE_ROOT}/paperless-media:/usr/src/paperless/media
+      - ${INSANE_SMOKE_ROOT:?Set INSANE_SMOKE_ROOT}/paperless-export:/usr/src/paperless/export
+      - ${INSANE_SMOKE_ROOT:?Set INSANE_SMOKE_ROOT}/consume:/usr/src/paperless/consume
+    environment:
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS: paperless-smoke-password
+      PAPERLESS_SECRET_KEY: paperless-smoke-only-not-a-secret
+      PAPERLESS_TIME_ZONE: America/New_York
+      PAPERLESS_OCR_LANGUAGE: eng
+      USERMAP_UID: "568"
+      USERMAP_GID: "568"
+      PAPERLESS_CONSUMER_POLLING_INTERVAL: "2"
+      PAPERLESS_CONSUMER_STABILITY_DELAY: "1"
+
+  insane:
+    image: ${INSANE_SMOKE_IMAGE:-insane:release-amd64}
+    platform: linux/amd64
+    depends_on:
+      webserver:
+        condition: service_started
+    ports:
+      - "51236:8080"
+    volumes:
+      - ${INSANE_SMOKE_ROOT:?Set INSANE_SMOKE_ROOT}/insane-state:/data/state
+      - ${INSANE_SMOKE_ROOT:?Set INSANE_SMOKE_ROOT}/consume:/data/output
+    environment:
+      InSane__Storage__StatePath: /data/state
+      InSane__Storage__OutputPath: /data/output
+      InSane__Scanner__EnableDemo: "true"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/api/v1/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30

@@ -1,0 +1,17 @@
+{
+  "name": "inSANE",
+  "short_name": "inSANE",
+  "description": "A web document builder for network and USB scanners.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f4ef",
+  "theme_color": "#fffdf9",
+  "icons": [
+    {
+      "src": "/brand/insane-favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
