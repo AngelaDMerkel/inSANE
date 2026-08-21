@@ -10,21 +10,19 @@ inSANE is a functional, modern web frontend for [NAPS2.Sdk](https://github.com/c
   <em>A screenshot of the inSANE demo environment</em>
 </p>
 
-## What is implemented
+## Features
 
-- NAPS2-backed SANE and eSCL/AirScan device discovery in the Linux container.
+- NAPS2-backed SANE and eSCL/AirScan device discovery.
 - Device-reported source discovery for flatbed, feeder, and hardware duplex, with resolution, bit-depth, and page-size choices recalculated per source.
 - Exact NAPS2 page sizes, including US Letter at 8.5 x 11 inches, plus automatic sizing when the driver reports a maximum scan area. Automatic mode scans that area and removes a contrasting scanner background from each page.
 - Full per-device profile management: create, rename, update, duplicate, delete, apply, and choose a physical-button default.
 - Advanced NAPS2 scan controls for brightness, contrast, blank-page white threshold, and blank-page coverage threshold.
 - Asynchronous scan jobs whose pages accrue into persistent document sessions.
 - A live page filmstrip, selected-page canvas, single- and multi-page 90-degree rotation, normalised crop, persisted drag-to-reorder, page removal, PDF completion, direct browser download, and document history.
-- Atomic PDF and multi-page TIFF publication: the document is fully exported within `/data/output` before it receives its final file name.
+- Atomic PDF and multi-page TIFF publication.
 - ZIP export with one processed PNG or JPEG per page, preserving document order, rotation, and crop settings for both bind-mount saves and browser downloads.
-- The browser does not expose an output-folder picker. Server saves always use the configured `/data/output` bind mount; browser downloads return a temporary PDF, TIFF, or ZIP copy directly to the current browser instead.
-- Shift-click page-range selection for non-destructive document splitting. Bind-mount saves create a separate history record for the selected pages and leave the source session open for the next split.
 - Structured scan failures with recovery guidance and one-click retry; pages received before an interruption remain in the current document.
-- A token-protected scanner-button action compatible with a scanbd/scanbm Docker bridge.
+- Experimental support for hardware scan buttons. 
 
 ## Docker Compose
 
