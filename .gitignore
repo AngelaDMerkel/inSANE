@@ -5,3 +5,8 @@
 .vscode/
 .env
 data/
+
+# Keep internal design and deployment notes out of the public repository.
+docs/
+*.md
+!/README.md

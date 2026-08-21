@@ -249,7 +249,7 @@ public sealed class SessionStore
     }
 
     private static string CleanTitle(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? $"Scan {DateTime.Now:MMM d, yyyy}" : value.Trim();
+        string.IsNullOrWhiteSpace(value) ? DocumentNaming.DefaultTitle() : value.Trim();
 }
 
 public sealed class ProfileStore
@@ -581,7 +581,7 @@ public sealed class DocumentExporter
         var stem = Path.GetFileNameWithoutExtension(value.Trim());
         foreach (var character in Path.GetInvalidFileNameChars()) stem = stem.Replace(character, '-');
         stem = string.Join('-', stem.Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        return string.IsNullOrWhiteSpace(stem) ? $"scan-{DateTime.Now:yyyy-MM-dd-HHmm}" : stem;
+        return string.IsNullOrWhiteSpace(stem) ? DocumentNaming.DefaultFileStem() : stem;
     }
 
     private static void SetSharedOutputPermissions(string path)

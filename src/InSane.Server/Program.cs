@@ -183,6 +183,28 @@ api.MapPost("/sessions/{sessionId:guid}/pages/{pageId:guid}/rotate",
         return updated is null || !found ? Results.NotFound() : Results.Ok(updated);
     });
 
+api.MapPost("/sessions/{sessionId:guid}/pages/rotate",
+    async (Guid sessionId, RotatePagesRequest request, SessionStore sessions) =>
+    {
+        if (request.Degrees % 90 != 0)
+            return Results.BadRequest(new { detail = "Rotation must be a multiple of 90 degrees." });
+        if (request.PageIds is null || request.PageIds.Count == 0)
+            return Results.BadRequest(new { detail = "Select at least one page to rotate." });
+        if (request.PageIds.Distinct().Count() != request.PageIds.Count)
+            return Results.BadRequest(new { detail = "The rotation selection contains duplicate pages." });
+
+        var pageIds = request.PageIds.ToHashSet();
+        var updated = await sessions.UpdateAsync(sessionId, session =>
+        {
+            if (session.Status == "saved") throw new InvalidOperationException("A saved document cannot be rotated.");
+            if (pageIds.Any(id => session.Pages.All(page => page.Id != id)))
+                throw new ArgumentException("The rotation selection contains a page outside this document.");
+            foreach (var page in session.Pages.Where(page => pageIds.Contains(page.Id)))
+                page.Rotation = ((page.Rotation + request.Degrees) % 360 + 360) % 360;
+        });
+        return updated is null ? Results.NotFound() : Results.Ok(updated);
+    });
+
 api.MapPost("/sessions/{sessionId:guid}/pages/{pageId:guid}/crop",
     async (Guid sessionId, Guid pageId, CropPageRequest request, SessionStore sessions) =>
     {

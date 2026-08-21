@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import re
 import struct
 import sys
 import time
@@ -78,6 +79,28 @@ def png_dimensions(payload: bytes):
     return struct.unpack(">II", payload[16:24])
 
 
+def jpeg_dimensions(payload: bytes):
+    require(payload.startswith(b"\xff\xd8"), "page image is not JPEG data")
+    offset = 2
+    start_of_frame = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+    while offset + 8 < len(payload):
+        if payload[offset] != 0xFF:
+            offset += 1
+            continue
+        marker = payload[offset + 1]
+        offset += 2
+        if marker in (0xD8, 0xD9) or 0xD0 <= marker <= 0xD7:
+            continue
+        require(offset + 2 <= len(payload), "JPEG marker is truncated")
+        length = struct.unpack(">H", payload[offset:offset + 2])[0]
+        require(length >= 2 and offset + length <= len(payload), "JPEG segment is invalid")
+        if marker in start_of_frame:
+            height, width = struct.unpack(">HH", payload[offset + 3:offset + 7])
+            return width, height
+        offset += length
+    raise SmokeFailure("JPEG dimensions were not found")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://127.0.0.1:51235")
@@ -94,13 +117,18 @@ def main() -> int:
     _, _, health = request_json(base, "/api/v1/health")
     require(health["status"] == "ok", "health status is not ok")
     require(health["runtime"]["uid"] == 568 and health["runtime"]["gid"] == 568,
-            f"runtime identity is not the TrueNAS Apps user: {health['runtime']}")
+            f"runtime identity does not match the release fixture: {health['runtime']}")
     require(health["storage"]["state"] == "writable", "state mount is not writable")
     require(health["storage"]["output"] == "writable", "output mount is not writable")
     _, _, system = request_json(base, "/api/v1/system")
     require(system["demoEnabled"] is True, "release smoke test requires the demo scanner")
     require(system["outputPath"] == "/data/output", "output path is not /data/output")
     passed("health, writable mounts, and system configuration")
+
+    _, _, default_session = request_json(base, "/api/v1/sessions", "POST", {"title": None}, expected=(201,))
+    require(re.fullmatch(r"Scan \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", default_session["title"]) is not None,
+            f"default title is not an ISO 8601 UTC timestamp: {default_session['title']}")
+    passed("ISO 8601 default document title")
 
     _, _, drivers = request_json(base, "/api/v1/drivers")
     driver_names = {driver["driver"] for driver in drivers}
@@ -115,12 +143,15 @@ def main() -> int:
     require("duplex" in capabilities["paperSources"], "duplex source is unavailable")
     require(300 in capabilities["sources"]["duplex"]["resolutions"], "300 dpi is unavailable")
     require("color" in capabilities["sources"]["duplex"]["bitDepths"], "colour is unavailable")
-    passed("driver catalog, discovery, and source-aware capabilities")
+    require("letter" in capabilities["sources"]["duplex"]["pageSizes"], "Letter is unavailable")
+    require(capabilities["sources"]["duplex"]["supportsAutomaticPageSize"] is True,
+            "automatic paper sizing is unavailable")
+    passed("driver catalog, discovery, and source-aware sizing capabilities")
 
     settings = {
         "deviceKey": device_key,
         "paperSource": "duplex",
-        "pageSize": "letter",
+        "pageSize": "auto",
         "resolution": 300,
         "bitDepth": "color",
         "autoDeskew": True,
@@ -160,7 +191,10 @@ def main() -> int:
         _, headers, image = request(base, page["imageUrl"])
         require(headers.get_content_type() == "image/jpeg" and image.startswith(b"\xff\xd8"),
                 "page image endpoint did not return JPEG data")
-    passed("asynchronous duplex scan, progress completion, and live page images")
+        dimensions = jpeg_dimensions(image)
+        require(dimensions == (850, 1100),
+                f"automatic paper sizing did not remove the demo scanner background: {dimensions}")
+    passed("asynchronous duplex scan, automatic paper sizing, and live page images")
 
     original_ids = [page["id"] for page in session["pages"]]
     reversed_ids = list(reversed(original_ids))
@@ -173,13 +207,23 @@ def main() -> int:
     require(session["pages"][0]["rotation"] == 90, "page rotation failed")
     request_json(base, f"/api/v1/sessions/{session_id}/pages/{first_id}/rotate", "POST",
                  {"degrees": 45}, expected=(400,))
+    _, _, session = request_json(base, f"/api/v1/sessions/{session_id}/pages/rotate", "POST",
+                                 {"pageIds": [first_id, second_id], "degrees": 90})
+    require([page["rotation"] for page in session["pages"][:2]] == [180, 90],
+            "multi-page rotation was not applied to every selected page")
+    _, _, session = request_json(base, f"/api/v1/sessions/{session_id}/pages/rotate", "POST",
+                                 {"pageIds": [first_id, second_id], "degrees": -90})
+    require([page["rotation"] for page in session["pages"][:2]] == [90, 0],
+            "multi-page counter-rotation was not applied to every selected page")
+    request_json(base, f"/api/v1/sessions/{session_id}/pages/rotate", "POST",
+                 {"pageIds": [first_id, second_id], "degrees": 45}, expected=(400,))
     crop = {"pageIds": [first_id, second_id], "x": 0.1, "y": 0.1, "width": 0.8, "height": 0.8}
     _, _, session = request_json(base, f"/api/v1/sessions/{session_id}/pages/crop", "POST", crop)
     require(all(page["crop"]["width"] == 0.8 for page in session["pages"][:2]),
             "multi-page crop was not applied")
     request_json(base, f"/api/v1/sessions/{session_id}/pages/crop", "POST",
                  {**crop, "width": 1.2}, expected=(400,))
-    passed("drag-model crop coordinates, multi-page crop, rotation, and reorder validation")
+    passed("drag-model crop coordinates, multi-page crop and rotation, and reorder validation")
 
     exports = []
     for fmt, stem in (("zip-png", "release-pages-png"), ("zip-jpeg", "release-pages-jpeg"),
@@ -274,8 +318,25 @@ def main() -> int:
 
     _, _, index = request(base, "/")
     page = index.decode("utf-8")
-    require("canvas-viewport" in page and "crop-apply-selected" in page and "workbench-14" in page,
+    require("canvas-viewport" in page and "page-focus-row" in page and "inspector-rows" in page and
+            "page-carousel" in page and "crop-apply-selected" in page and
+            "sidebar-brand" in page and "page-image-frame" in page and "history-button" in page and
+            "workbench-36" in page and "app-header" not in page and "role=\"tablist\"" not in page and
+            "selected-page-title" not in page and "export-scope" not in page and
+            "profile-manager-new" in page and "new-profile" in page and "profile-utilities" in page and
+            "save-profile" not in page,
             "deployed UI is missing the final canvas or crop controls")
+    require(page.index('id="scan-progress"') < page.index('id="scan" class="button scan-button"'),
+            "scan progress must render above the fixed scan button")
+    _, _, script = request(base, "/app.js?v=workbench-36")
+    script_text = script.decode("utf-8")
+    require("Scanner connected" not in script_text and "renderPagePreview" in script_text and
+            "renderThumbnailPreview" in script_text and "handleCanvasWheel" in script_text and
+            "supportsAutomaticPageSize" in script_text and "labelForPageSize" in script_text and
+            "openNewProfileDialog" in script_text and "setProfileOverlay" in script_text and
+            "defaultDocumentTitle" in script_text and "defaultOutputStem" in script_text and
+            "showModal" not in script_text and "Untitled scan" not in script_text,
+            "deployed UI is missing the crop preview or still renders redundant scanner status")
     request(base, "/api/v1/documents/..%2Fsession.json", expected=(404,))
     request(base, f"/api/v1/profiles/{profile_id}", "DELETE", expected=(204,))
     passed("final workbench assets, path containment, and profile deletion")

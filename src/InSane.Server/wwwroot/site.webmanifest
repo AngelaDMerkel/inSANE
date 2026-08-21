@@ -8,7 +8,7 @@
   "theme_color": "#fffdf9",
   "icons": [
     {
-      "src": "/brand/insane-favicon.svg",
+      "src": "/brand/insane-favicon.svg?v=base-06-feed-layer",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

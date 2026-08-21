@@ -1,6 +1,16 @@
+using System.Globalization;
 using System.Text.Json.Serialization;
 
 namespace InSane;
+
+internal static class DocumentNaming
+{
+    public static string DefaultTitle(DateTimeOffset? timestamp = null) =>
+        $"Scan {(timestamp ?? DateTimeOffset.UtcNow).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)}";
+
+    public static string DefaultFileStem(DateTimeOffset? timestamp = null) =>
+        $"scan-{(timestamp ?? DateTimeOffset.UtcNow).ToUniversalTime().ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture)}";
+}
 
 public sealed class InSaneOptions
 {
@@ -40,6 +50,8 @@ public sealed record ScannerDevice(
 public sealed record SourceCapabilities(
     IReadOnlyList<int> Resolutions,
     IReadOnlyList<string> BitDepths,
+    IReadOnlyList<string> PageSizes,
+    bool SupportsAutomaticPageSize,
     PageDimensions? MaximumPageSize);
 
 public sealed record DeviceCapabilities(
@@ -107,7 +119,7 @@ public sealed class DocumentPage
 public sealed class DocumentSession
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public string Title { get; set; } = "Untitled scan";
+    public string Title { get; set; } = DocumentNaming.DefaultTitle();
     public string Status { get; set; } = "building";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -142,6 +154,7 @@ public sealed class ScanJob
 public sealed record CreateSessionRequest(string? Title);
 public sealed record ScanSessionRequest(ScanSettings Settings);
 public sealed record RotatePageRequest(int Degrees);
+public sealed record RotatePagesRequest(IReadOnlyList<Guid> PageIds, int Degrees);
 public sealed record CropPageRequest(double X, double Y, double Width, double Height);
 public sealed record CropPagesRequest(IReadOnlyList<Guid> PageIds, double X, double Y, double Width, double Height);
 public sealed record ReorderPagesRequest(IReadOnlyList<Guid> PageIds);

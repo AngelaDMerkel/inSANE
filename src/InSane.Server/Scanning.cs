@@ -7,6 +7,7 @@ using NAPS2.Scan;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using Naps2BitDepth = NAPS2.Images.BitDepth;
 using Naps2PageSize = NAPS2.Images.PageSize;
 
@@ -97,6 +98,13 @@ public sealed class ScannerRouter : IScannerBackend
 
 public sealed class Naps2ScannerBackend : IScannerBackend
 {
+    private static readonly (string Key, Naps2PageSize Size)[] CommonPageSizes =
+    [
+        ("letter", Naps2PageSize.Letter),
+        ("legal", Naps2PageSize.Legal),
+        ("a4", Naps2PageSize.A4)
+    ];
+
     private readonly Naps2Runtime _runtime;
     private readonly ScannerOptions _options;
     private readonly ILogger<Naps2ScannerBackend> _logger;
@@ -147,7 +155,12 @@ public sealed class Naps2ScannerBackend : IScannerBackend
         if (caps.PaperSourceCaps?.SupportsFlatbed == true) paperSources.Add("flatbed");
         if (caps.PaperSourceCaps?.SupportsFeeder == true) paperSources.Add("feeder");
         if (caps.PaperSourceCaps?.SupportsDuplex == true) paperSources.Add("duplex");
-        if (paperSources.Count == 0) paperSources.Add("auto");
+        if (paperSources.Count == 0) paperSources.AddRange(sources.Keys);
+        if (paperSources.Count == 0)
+        {
+            paperSources.Add("auto");
+            sources["auto"] = DefaultSourceCapabilities();
+        }
         return new DeviceCapabilities(deviceKey, paperSources, sources,
             caps.MetadataCaps?.Manufacturer, caps.MetadataCaps?.Model, caps.MetadataCaps?.DriverSubtype);
     }
@@ -165,7 +178,16 @@ public sealed class Naps2ScannerBackend : IScannerBackend
             controller.PageProgress += (_, args) => pageProgress(args.PageNumber, args.Progress);
             var options = DeviceOptions(device.Driver, device);
             options.PaperSource = ParsePaperSource(settings.PaperSource);
-            options.PageSize = ParsePageSize(settings.PageSize);
+            var automaticallySizePage = settings.PageSize.Equals("auto", StringComparison.OrdinalIgnoreCase);
+            if (automaticallySizePage)
+            {
+                var caps = await controller.GetCaps(options, cancellationToken);
+                options.PageSize = AutomaticScanArea(caps, options.PaperSource) ?? Naps2PageSize.Letter;
+            }
+            else
+            {
+                options.PageSize = ParsePageSize(settings.PageSize);
+            }
             options.Dpi = settings.Resolution;
             options.BitDepth = ParseBitDepth(settings.BitDepth);
             options.AutoDeskew = settings.AutoDeskew;
@@ -187,6 +209,10 @@ public sealed class Naps2ScannerBackend : IScannerBackend
                     pageNumber++;
                     var path = allocatePagePath(pageNumber);
                     image.Save(path, ImageFileFormat.Jpeg, new ImageSaveOptions { Quality = 88 });
+                    if (automaticallySizePage)
+                    {
+                        await AutomaticPageSizeDetector.TrimScannerBackgroundAsync(path, cancellationToken);
+                    }
                     await pageCompleted(pageNumber, path);
                 }
             }
@@ -227,8 +253,26 @@ public sealed class Naps2ScannerBackend : IScannerBackend
         target[name] = new SourceCapabilities(
             caps.DpiCaps?.CommonValues?.ToList() ?? [300],
             bitDepths.Count == 0 ? ["color"] : bitDepths,
+            CommonPageSizes
+                .Where(pageSize => caps.PageSizeCaps?.Fits(pageSize.Size) != false)
+                .Select(pageSize => pageSize.Key)
+                .ToList(),
+            area is not null,
             area is null ? null : new PageDimensions(area.WidthInInches, area.HeightInInches, "in"));
     }
+
+    private static SourceCapabilities DefaultSourceCapabilities() =>
+        new([300], ["color"], CommonPageSizes.Select(pageSize => pageSize.Key).ToList(), false, null);
+
+    private static Naps2PageSize? AutomaticScanArea(ScanCaps caps, PaperSource source) => source switch
+    {
+        PaperSource.Flatbed => caps.FlatbedCaps?.PageSizeCaps?.ScanArea,
+        PaperSource.Feeder => caps.FeederCaps?.PageSizeCaps?.ScanArea,
+        PaperSource.Duplex => caps.DuplexCaps?.PageSizeCaps?.ScanArea,
+        _ => caps.FlatbedCaps?.PageSizeCaps?.ScanArea
+             ?? caps.FeederCaps?.PageSizeCaps?.ScanArea
+             ?? caps.DuplexCaps?.PageSizeCaps?.ScanArea
+    };
 
     private static PaperSource ParsePaperSource(string value) => value.ToLowerInvariant() switch
     {
@@ -264,8 +308,10 @@ public sealed class DemoScannerBackend : IScannerBackend
         Task.FromResult(new DeviceCapabilities(deviceKey, ["feeder", "duplex"],
             new Dictionary<string, SourceCapabilities>
             {
-                ["feeder"] = new([150, 200, 300, 600], ["color", "grayscale", "blackAndWhite"], new(8.5m, 14m, "in")),
-                ["duplex"] = new([150, 200, 300, 600], ["color", "grayscale", "blackAndWhite"], new(8.5m, 14m, "in"))
+                ["feeder"] = new([150, 200, 300, 600], ["color", "grayscale", "blackAndWhite"],
+                    ["letter", "legal", "a4"], true, new(8.5m, 14m, "in")),
+                ["duplex"] = new([150, 200, 300, 600], ["color", "grayscale", "blackAndWhite"],
+                    ["letter", "legal", "a4"], true, new(8.5m, 14m, "in"))
             }, "inSANE", "Session Canvas", "demo"));
 
     public async Task ScanAsync(ScanSettings settings, Func<int, string> allocatePagePath,
@@ -282,20 +328,31 @@ public sealed class DemoScannerBackend : IScannerBackend
                 await Task.Delay(45, cancellationToken);
             }
             var path = allocatePagePath(page);
-            await CreateDemoPageAsync(path, page, cancellationToken);
+            await CreateDemoPageAsync(path, page, settings.PageSize.Equals("auto", StringComparison.OrdinalIgnoreCase),
+                cancellationToken);
+            if (settings.PageSize.Equals("auto", StringComparison.OrdinalIgnoreCase))
+            {
+                await AutomaticPageSizeDetector.TrimScannerBackgroundAsync(path, cancellationToken);
+            }
             await pageCompleted(page, path);
         }
     }
 
-    private static async Task CreateDemoPageAsync(string path, int page, CancellationToken cancellationToken)
+    private static async Task CreateDemoPageAsync(string path, int page, bool includeScannerBackground,
+        CancellationToken cancellationToken)
     {
         const int width = 850;
-        const int height = 1100;
-        using var image = new Image<Rgb24>(width, height, Color.White);
+        const int pageHeight = 1100;
+        var imageHeight = includeScannerBackground ? 1400 : pageHeight;
+        using var image = new Image<Rgb24>(width, imageHeight, includeScannerBackground ? Color.Black : Color.White);
         image.Metadata.HorizontalResolution = 100;
         image.Metadata.VerticalResolution = 100;
         image.ProcessPixelRows(accessor =>
         {
+            if (includeScannerBackground)
+            {
+                for (var y = 0; y < pageHeight; y++) Fill(accessor.GetRowSpan(y), 0, width, new Rgb24(255, 255, 255));
+            }
             var ink = page % 2 == 0 ? new Rgb24(90, 46, 52) : new Rgb24(68, 62, 57);
             for (var y = 85; y < 175; y++) Fill(accessor.GetRowSpan(y), 72, 778, ink);
             for (var block = 0; block < 7; block++)
@@ -313,6 +370,125 @@ public sealed class DemoScannerBackend : IScannerBackend
     {
         for (var x = start; x < Math.Min(end, row.Length); x++) row[x] = color;
     }
+}
+
+internal static class AutomaticPageSizeDetector
+{
+    private const int SampleStride = 4;
+    private const double MinimumPaperCoverage = 0.08;
+    private const double MinimumBackgroundContrast = 28;
+
+    public static async Task TrimScannerBackgroundAsync(string path, CancellationToken cancellationToken)
+    {
+        using var image = await Image.LoadAsync<Rgb24>(path, cancellationToken);
+        var bounds = DetectPaperBounds(image);
+        if (bounds.X == 0 && bounds.Y == 0 && bounds.Width == image.Width && bounds.Height == image.Height) return;
+
+        image.Mutate(context => context.Crop(bounds));
+        await image.SaveAsJpegAsync(path, new JpegEncoder { Quality = 88 }, cancellationToken);
+    }
+
+    internal static Rectangle DetectPaperBounds(Image<Rgb24> image)
+    {
+        if (image.Width < 32 || image.Height < 32) return new Rectangle(0, 0, image.Width, image.Height);
+
+        var patch = Math.Max(4, Math.Min(image.Width, image.Height) / 40);
+        var background = AverageCornerLuminance(image, patch);
+        var centre = AverageLuminance(image,
+            new Rectangle(image.Width / 4, image.Height / 4, image.Width / 2, image.Height / 2));
+
+        // A white scanner bed and a white page cannot be distinguished reliably. In that case the scanner's returned
+        // image dimensions are already the safest automatic result.
+        if (centre - background < MinimumBackgroundContrast)
+            return new Rectangle(0, 0, image.Width, image.Height);
+
+        var threshold = Math.Min(245, background + MinimumBackgroundContrast);
+        var top = FindRow(image, threshold, fromStart: true);
+        var bottom = FindRow(image, threshold, fromStart: false);
+        var left = FindColumn(image, threshold, fromStart: true);
+        var right = FindColumn(image, threshold, fromStart: false);
+        if (top < 0 || bottom <= top || left < 0 || right <= left)
+            return new Rectangle(0, 0, image.Width, image.Height);
+
+        const int padding = 0;
+        left = Math.Max(0, left - padding);
+        top = Math.Max(0, top - padding);
+        right = Math.Min(image.Width - 1, right + padding);
+        bottom = Math.Min(image.Height - 1, bottom + padding);
+
+        // Ignore tiny adjustments caused by ordinary scanner overscan or JPEG noise.
+        if ((right - left + 1) >= image.Width * 0.985 && (bottom - top + 1) >= image.Height * 0.985)
+            return new Rectangle(0, 0, image.Width, image.Height);
+
+        return new Rectangle(left, top, right - left + 1, bottom - top + 1);
+    }
+
+    private static int FindRow(Image<Rgb24> image, double threshold, bool fromStart)
+    {
+        var start = fromStart ? 0 : image.Height - 1;
+        var end = fromStart ? image.Height : -1;
+        var step = fromStart ? 1 : -1;
+        for (var y = start; y != end; y += step)
+        {
+            var bright = 0;
+            var samples = 0;
+            for (var x = 0; x < image.Width; x += SampleStride)
+            {
+                samples++;
+                if (Luminance(image[x, y]) >= threshold) bright++;
+            }
+            if (bright >= samples * MinimumPaperCoverage) return y;
+        }
+        return -1;
+    }
+
+    private static int FindColumn(Image<Rgb24> image, double threshold, bool fromStart)
+    {
+        var start = fromStart ? 0 : image.Width - 1;
+        var end = fromStart ? image.Width : -1;
+        var step = fromStart ? 1 : -1;
+        for (var x = start; x != end; x += step)
+        {
+            var bright = 0;
+            var samples = 0;
+            for (var y = 0; y < image.Height; y += SampleStride)
+            {
+                samples++;
+                if (Luminance(image[x, y]) >= threshold) bright++;
+            }
+            if (bright >= samples * MinimumPaperCoverage) return x;
+        }
+        return -1;
+    }
+
+    private static double AverageCornerLuminance(Image<Rgb24> image, int patch)
+    {
+        var regions = new[]
+        {
+            new Rectangle(0, 0, patch, patch),
+            new Rectangle(image.Width - patch, 0, patch, patch),
+            new Rectangle(0, image.Height - patch, patch, patch),
+            new Rectangle(image.Width - patch, image.Height - patch, patch, patch)
+        };
+        return regions.Average(region => AverageLuminance(image, region));
+    }
+
+    private static double AverageLuminance(Image<Rgb24> image, Rectangle region)
+    {
+        double total = 0;
+        var samples = 0;
+        for (var y = region.Top; y < region.Bottom; y += SampleStride)
+        {
+            for (var x = region.Left; x < region.Right; x += SampleStride)
+            {
+                total += Luminance(image[x, y]);
+                samples++;
+            }
+        }
+        return samples == 0 ? 0 : total / samples;
+    }
+
+    private static double Luminance(Rgb24 pixel) => pixel.R * 0.2126 + pixel.G * 0.7152 + pixel.B * 0.0722;
 }
 
 public sealed class ScanCoordinator

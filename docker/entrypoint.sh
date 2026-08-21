@@ -35,8 +35,8 @@ else
   usermod --gid "$insane_gid" "$insane_user"
 fi
 
-# The TrueNAS USB nodes are commonly root-owned. Keep the application at the
-# Apps UID while granting only the supplementary groups exposed by the USB bus.
+# USB nodes are commonly root-owned. Keep the application unprivileged while
+# granting only the supplementary groups exposed by the USB bus.
 usb_gids="0"
 if [ -d /dev/bus/usb ]; then
   usb_gids="$usb_gids $(find /dev/bus/usb -maxdepth 2 -printf '%G\n' | sort -un)"

@@ -11,7 +11,7 @@ services:
     environment:
       POSTGRES_DB: paperless
       POSTGRES_USER: paperless
-      POSTGRES_PASSWORD: paperless-smoke-password
+      POSTGRES_PASSWORD: integration-test-only
     volumes:
       - ${INSANE_SMOKE_ROOT:?Set INSANE_SMOKE_ROOT}/db:/var/lib/postgresql/data
     healthcheck:
@@ -36,9 +36,9 @@ services:
       PAPERLESS_REDIS: redis://broker:6379
       PAPERLESS_DBHOST: db
       PAPERLESS_DBUSER: paperless
-      PAPERLESS_DBPASS: paperless-smoke-password
-      PAPERLESS_SECRET_KEY: paperless-smoke-only-not-a-secret
-      PAPERLESS_TIME_ZONE: America/New_York
+      PAPERLESS_DBPASS: integration-test-only
+      PAPERLESS_SECRET_KEY: integration-test-only-not-a-secret
+      PAPERLESS_TIME_ZONE: UTC
       PAPERLESS_OCR_LANGUAGE: eng
       USERMAP_UID: "568"
       USERMAP_GID: "568"

@@ -1,23 +1,13 @@
 services:
   insane:
-    build:
-      context: .
-    image: insane:local
-    container_name: insane
+    image: docker.io/angeladmerkel/insane:1.0.0-amd64
     restart: unless-stopped
     privileged: true
     ports:
       - "51234:8080"
     volumes:
-      - /mnt/Array/databases/insane:/data/state
-      - /mnt/Array/databases/paperless/consume:/data/output
+      - ${INSANE_STATE_PATH:-./data/state}:/data/state
+      - ${INSANE_OUTPUT_PATH:-./data/output}:/data/output
     environment:
-      PUID: "568"
-      PGID: "568"
-      InSane__Storage__StatePath: /data/state
-      InSane__Storage__OutputPath: /data/output
-      InSane__Scanner__EnableDemo: "false"
-      InSane__Scanner__EsclSearchTimeoutMilliseconds: "5000"
-      # Enable after configuring scanbd/scanbm and setting a default profile in the UI.
-      InSane__Scanner__PhysicalButtonEnabled: "false"
-      InSane__Scanner__PhysicalButtonToken: ""
+      PUID: "${PUID:-568}"
+      PGID: "${PGID:-568}"

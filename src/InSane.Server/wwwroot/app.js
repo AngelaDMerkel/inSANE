@@ -2,9 +2,10 @@ const $ = (selector) => document.querySelector(selector);
 const state = {
   devices: [], capabilities: null, profiles: [], session: null, selectedPageId: null,
   activeJob: null, zoom: .72, cropEditing: false, titleTimer: null, outputNameTouched: false,
-  draggedPageId: null, reorderPending: false, pageDeletePending: false,
+  draggedPageId: null, reorderPending: false, pageDeletePending: false, rotationPending: false,
   selectedPageIds: new Set(), selectionAnchorId: null, failedJob: null,
-  cropDraft: null, cropDraftPageId: null, cropDrag: null
+  cropDraft: null, cropDraftPageId: null, cropDrag: null, wheelZoomTimer: null,
+  profileOverlayReturn: "settings", profileOverlayTrigger: null
 };
 
 async function api(path, options = {}) {
@@ -35,10 +36,31 @@ function labelForBitDepth(value) {
   return ({ color: "Colour", grayscale: "Greyscale", blackAndWhite: "Black & white" })[value] || value;
 }
 
+function labelForPageSize(value) {
+  return ({ auto: "Automatic", letter: "US Letter", legal: "US Legal", a4: "A4" })[value] || value;
+}
+
+function defaultDocumentTitle(date = new Date()) {
+  return `Scan ${date.toISOString().replace(/\.\d{3}Z$/, "Z")}`;
+}
+
+function defaultOutputStem(title) {
+  const match = /^Scan (\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/.exec(title.trim());
+  return match ? `scan-${match[1]}${match[2]}${match[3]}T${match[4]}${match[5]}${match[6]}Z` : slug(title);
+}
+
 function selectedPage() { return state.session?.pages.find(page => page.id === state.selectedPageId) || null; }
+
+function selectIfAvailable(selector, value) {
+  const select = $(selector);
+  if ([...select.options].some(item => item.value === String(value))) select.value = String(value);
+}
 
 async function initialize() {
   wireEvents();
+  const initialTitle = defaultDocumentTitle();
+  $("#document-title").value = initialTitle;
+  $("#output-filename").value = defaultOutputStem(initialTitle);
   try {
     const [devices, sessions] = await Promise.all([api("/api/v1/devices"), api("/api/v1/sessions")]);
     state.devices = devices;
@@ -58,10 +80,11 @@ function wireEvents() {
   $("#device").addEventListener("change", deviceChanged);
   $("#paper-source").addEventListener("change", renderCapabilities);
   $("#profile").addEventListener("change", applyProfile);
-  $("#save-profile").addEventListener("click", () => $("#profile-dialog").showModal());
+  $("#new-profile").addEventListener("click", () => openNewProfileDialog(false));
   $("#manage-profiles").addEventListener("click", openProfileManager);
-  $("#profile-cancel").addEventListener("click", () => $("#profile-dialog").close());
-  $("#profile-manager-close").addEventListener("click", () => $("#profile-manager-dialog").close());
+  $("#profile-manager-new").addEventListener("click", () => openNewProfileDialog(true));
+  $("#profile-cancel").addEventListener("click", closeProfileEditor);
+  $("#profile-manager-close").addEventListener("click", closeProfileOverlay);
   $("#profile-form").addEventListener("submit", saveProfile);
   [["#brightness", "#brightness-value"], ["#contrast", "#contrast-value"]].forEach(([input, output]) => {
     $(input).addEventListener("input", () => { $(output).value = $(input).value; });
@@ -71,7 +94,7 @@ function wireEvents() {
   $("#new-session").addEventListener("click", newSession);
   $("#save-document").addEventListener("click", saveDocument);
   $("#download-document").addEventListener("click", downloadDocument);
-  $("#clear-page-selection").addEventListener("click", clearPageSelection);
+  $("#page-focus-number").addEventListener("click", clearPageSelection);
   $("#output-format").addEventListener("change", updateOutputFormat);
   $("#document-title").addEventListener("input", scheduleTitleSave);
   $("#output-filename").addEventListener("input", () => { state.outputNameTouched = true; });
@@ -87,21 +110,62 @@ function wireEvents() {
   document.addEventListener("pointercancel", endCropDrag);
   $("#zoom-in").addEventListener("click", () => setZoom(state.zoom + .08));
   $("#zoom-out").addEventListener("click", () => setZoom(state.zoom - .08));
-  $("#inspector-tab").addEventListener("click", () => setTab("inspector"));
-  $("#history-tab").addEventListener("click", () => setTab("history"));
+  $("#canvas").addEventListener("wheel", handleCanvasWheel, { passive: false });
+  $("#history-tab").addEventListener("click", toggleHistory);
   $("#retry-scan").addEventListener("click", retryScan);
   $("#dismiss-scan-error").addEventListener("click", dismissScanError);
   document.addEventListener("keydown", handleKeyboardShortcut);
 }
 
+function profileOverlayOpen() {
+  return !$("#profile-dialog").hidden || !$("#profile-manager-dialog").hidden;
+}
+
+function setProfileOverlay(view, focusSelector = null) {
+  $("#settings-panel").hidden = view !== "settings";
+  $("#profile-dialog").hidden = view !== "editor";
+  $("#profile-manager-dialog").hidden = view !== "manager";
+  $("#new-profile").setAttribute("aria-expanded", String(view === "editor"));
+  $("#manage-profiles").setAttribute("aria-expanded", String(view === "manager"));
+  if (focusSelector) requestAnimationFrame(() => $(focusSelector)?.focus());
+}
+
+function closeProfileOverlay() {
+  const trigger = state.profileOverlayTrigger;
+  setProfileOverlay("settings");
+  state.profileOverlayReturn = "settings";
+  state.profileOverlayTrigger = null;
+  requestAnimationFrame(() => trigger?.focus());
+}
+
+function closeProfileEditor() {
+  $("#profile-name").value = "";
+  if (state.profileOverlayReturn === "manager") {
+    setProfileOverlay("manager", "#profile-manager-new");
+    return;
+  }
+  closeProfileOverlay();
+}
+
+function openNewProfileDialog(fromManager = false) {
+  if (!fromManager) state.profileOverlayTrigger = $("#new-profile");
+  state.profileOverlayReturn = fromManager ? "manager" : "settings";
+  $("#profile-name").value = "";
+  setProfileOverlay("editor", "#profile-name");
+}
+
 function renderDevices() {
   const select = $("#device"); select.replaceChildren();
+  const deviceStatus = $("#device-status");
   if (!state.devices.length) {
     select.append(option("", "No scanner found"));
     $("#scan").disabled = true; $("#empty-scan").disabled = true;
-    $("#device-status").innerHTML = '<span class="status-dot" style="background:#9b4545"></span>No scanner found';
+    deviceStatus.hidden = false;
+    deviceStatus.innerHTML = '<span class="status-dot" style="background:#9b4545"></span>No scanner found';
     return;
   }
+  deviceStatus.hidden = true;
+  deviceStatus.replaceChildren();
   for (const device of state.devices) select.append(option(device.key, `${device.name} · ${device.driver.toUpperCase()}`));
   $("#scan").disabled = false; $("#empty-scan").disabled = false;
 }
@@ -116,16 +180,25 @@ async function deviceChanged() {
     ]);
     state.capabilities = caps; state.profiles = profiles;
     renderCapabilities(); renderProfiles();
-    $("#device-status").innerHTML = '<span class="status-dot"></span>Scanner connected';
+    $("#device-status").hidden = true;
   } catch (error) { showError(error); }
 }
 
 function renderCapabilities() {
+  if (!state.capabilities) return;
   const source = $("#paper-source");
   const previousSource = source.value;
   source.replaceChildren(...state.capabilities.paperSources.map(value => option(value, labelForSource(value), value === previousSource)));
   const activeSource = state.capabilities.sources[source.value] || Object.values(state.capabilities.sources)[0];
   if (!activeSource) return;
+  const pageSize = $("#page-size"), previousPageSize = pageSize.value;
+  const pageSizes = [...(activeSource.pageSizes || ["letter", "legal", "a4"] )];
+  if (activeSource.supportsAutomaticPageSize) pageSizes.unshift("auto");
+  pageSize.replaceChildren(...pageSizes.map(value => option(value, labelForPageSize(value), value === previousPageSize)));
+  if (!pageSize.value) pageSize.value = pageSizes.includes("letter") ? "letter" : pageSizes[0];
+  pageSize.title = activeSource.supportsAutomaticPageSize
+    ? "Automatic scans the device's full reported area and detects the returned paper edges."
+    : "This scanner does not report a scan area for automatic sizing.";
   const resolution = $("#resolution"), previousDpi = Number(resolution.value);
   resolution.replaceChildren(...activeSource.resolutions.map(value => option(value, `${value} dpi`, value === previousDpi)));
   if (!resolution.value) resolution.value = activeSource.resolutions.includes(300) ? "300" : String(activeSource.resolutions[0]);
@@ -158,8 +231,9 @@ function applyProfile() {
   if (!profile) return;
   const value = profile.settings;
   $("#paper-source").value = value.paperSource; renderCapabilities();
-  $("#page-size").value = value.pageSize; $("#resolution").value = String(value.resolution);
-  $("#bit-depth").value = value.bitDepth;
+  selectIfAvailable("#page-size", value.pageSize);
+  selectIfAvailable("#resolution", value.resolution);
+  selectIfAvailable("#bit-depth", value.bitDepth);
   $("#auto-deskew").checked = value.autoDeskew !== false;
   $("#discard-blank-pages").checked = value.discardBlankPages === true;
   $("#brightness").value = value.brightness ?? 0; $("#brightness-value").value = value.brightness ?? 0;
@@ -175,14 +249,20 @@ async function saveProfile(event) {
       name: $("#profile-name").value, deviceKey: $("#device").value, settings: settings(), isDefault: false
     }) });
     state.profiles.push(profile); renderProfiles(); $("#profile").value = profile.id;
-    $("#profile-dialog").close(); $("#profile-name").value = ""; toast("Scan profile saved");
+    $("#profile-name").value = "";
+    if (state.profileOverlayReturn === "manager") {
+      renderProfileManager();
+      setProfileOverlay("manager", "#profile-manager-new");
+    } else closeProfileOverlay();
+    toast("Scan profile saved");
   } catch (error) { showError(error); }
 }
 
 async function openProfileManager() {
+  state.profileOverlayTrigger = $("#manage-profiles");
   await reloadProfiles();
   renderProfileManager();
-  $("#profile-manager-dialog").showModal();
+  setProfileOverlay("manager", "#profile-manager-close");
 }
 
 async function reloadProfiles(preferredId = null) {
@@ -190,7 +270,7 @@ async function reloadProfiles(preferredId = null) {
   state.profiles = await api(`/api/v1/profiles?deviceKey=${encodeURIComponent(deviceKey)}`);
   renderProfiles();
   if (preferredId && state.profiles.some(profile => profile.id === preferredId)) $("#profile").value = preferredId;
-  if ($("#profile-manager-dialog").open) renderProfileManager();
+  if (!$("#profile-manager-dialog").hidden) renderProfileManager();
 }
 
 function profileAction(label, action, className = "button quiet small") {
@@ -216,7 +296,7 @@ function renderProfileManager() {
     }
     const actions = document.createElement("div"); actions.className = "profile-manager-actions";
     actions.append(
-      profileAction("Use", () => { $("#profile").value = profile.id; applyProfile(); $("#profile-manager-dialog").close(); }),
+      profileAction("Use", () => { $("#profile").value = profile.id; applyProfile(); closeProfileOverlay(); }),
       profileAction("Rename", () => updateProfile(profile, { name: input.value })),
       profileAction("Update", () => updateProfile(profile, { settings: settings() })),
       profileAction("Duplicate", () => duplicateProfile(profile))
@@ -324,7 +404,7 @@ function setScanning(active) {
   $("#scan").classList.toggle("scanning", active);
   $("#scan-label").textContent = active ? "Cancel scan" : "Scan pages";
   $("#scan-progress").hidden = !active;
-  $("#device-status").innerHTML = `<span class="status-dot"></span>${active ? "Receiving pages" : "Scanner connected"}`;
+  $("#device-status").hidden = true;
   if (state.session) renderPageList();
 }
 
@@ -341,13 +421,13 @@ function renderSession() {
   const saved = state.session.status === "saved";
   const titleInput = $("#document-title");
   if (document.activeElement !== titleInput) titleInput.value = state.session.title;
-  const visibleTitle = titleInput.value.trim() || "Untitled scan";
+  const visibleTitle = titleInput.value.trim() || state.session.title || defaultDocumentTitle();
   const pageTotal = state.session.pages.length;
   $("#page-count").textContent = pageTotal;
   $("#document-status").textContent = saved
     ? `Saved as ${state.session.outputFileName}`
     : pageTotal ? `${pageTotal} ${pageTotal === 1 ? "page" : "pages"} ready to save` : "Building document";
-  if (!state.outputNameTouched) $("#output-filename").value = slug(visibleTitle);
+  if (!state.outputNameTouched) $("#output-filename").value = defaultOutputStem(visibleTitle);
   titleInput.disabled = saved;
   $("#output-filename").disabled = saved;
   $("#output-format").disabled = saved;
@@ -362,7 +442,7 @@ function renderSession() {
 function renderPageList() {
   const list = $("#page-list"); list.replaceChildren();
   if (!state.session.pages.length) {
-    const empty = document.createElement("div"); empty.className = "filmstrip-empty";
+    const empty = document.createElement("div"); empty.className = "filmstrip-empty visually-hidden";
     empty.textContent = "Scanned pages will appear here as the feeder completes them."; list.append(empty); return;
   }
   for (const page of state.session.pages) {
@@ -372,8 +452,8 @@ function renderPageList() {
     button.title = button.draggable
       ? "Drag to reorder · Shift-click to select a range · Backspace to remove"
       : "Shift-click to select a range";
-    button.innerHTML = `<span class="thumb-paper"><img src="${page.thumbnailUrl}" alt=""><span class="page-number">${page.number}</span></span><span><strong>Page ${page.number}</strong><small>${page.rotation ? `${page.rotation}° · ` : ""}Scanned</small></span>`;
-    button.querySelector("img").style.transform = `rotate(${page.rotation}deg)`;
+    button.innerHTML = `<span class="thumb-paper"><span class="thumb-image-frame"><img src="${page.thumbnailUrl}" alt=""></span><span class="page-number">${page.number}</span></span><span class="page-thumb-copy visually-hidden"><strong>Page ${page.number}</strong><small>${page.rotation ? `${page.rotation}° · ` : ""}Scanned</small></span>`;
+    renderThumbnailPreview(button, page);
     button.addEventListener("click", event => selectPage(event, page.id));
     button.addEventListener("dragstart", event => beginPageDrag(event, page.id, button));
     button.addEventListener("dragover", event => updatePageDropTarget(event, page.id, button));
@@ -395,21 +475,27 @@ function reconcilePageSelection() {
 
 function selectPage(event, pageId) {
   const pages = state.session.pages;
+  const additive = event.metaKey || event.ctrlKey;
   if (event.shiftKey) {
     const anchorId = state.selectionAnchorId || state.selectedPageId || pageId;
     const anchorIndex = Math.max(0, pages.findIndex(page => page.id === anchorId));
     const pageIndex = pages.findIndex(page => page.id === pageId);
     const start = Math.min(anchorIndex, pageIndex), end = Math.max(anchorIndex, pageIndex);
     state.selectedPageIds = new Set(pages.slice(start, end + 1).map(page => page.id));
-  } else if (event.metaKey || event.ctrlKey) {
-    if (state.selectedPageIds.has(pageId)) state.selectedPageIds.delete(pageId);
+  } else if (additive) {
+    if (!state.selectedPageIds.size && state.selectedPageId) state.selectedPageIds.add(state.selectedPageId);
+    if (state.selectedPageIds.has(pageId) && state.selectedPageIds.size > 1) state.selectedPageIds.delete(pageId);
     else state.selectedPageIds.add(pageId);
     state.selectionAnchorId = pageId;
   } else {
     state.selectedPageIds.clear();
     state.selectionAnchorId = pageId;
   }
-  state.selectedPageId = pageId; stopCropEditing(); renderSession();
+  state.selectedPageId = additive && state.selectedPageIds.size && !state.selectedPageIds.has(pageId)
+    ? pages.find(page => state.selectedPageIds.has(page.id))?.id || pageId
+    : pageId;
+  if (additive) state.selectionAnchorId = state.selectedPageId;
+  stopCropEditing(); renderSession();
 }
 
 function clearPageSelection() {
@@ -424,9 +510,11 @@ function selectedPageIdsInOrder() {
 }
 
 function renderExportScope() {
-  const count = state.selectedPageIds.size;
-  $("#export-scope").hidden = count === 0;
-  $("#export-scope-count").textContent = `${count} ${count === 1 ? "page" : "pages"} selected`;
+  const count = state.selectedPageIds.size || (selectedPage() ? 1 : 0);
+  const indicator = $("#page-focus-number");
+  indicator.textContent = count;
+  indicator.setAttribute("aria-label", `${count} ${count === 1 ? "page" : "pages"} selected`);
+  indicator.title = count > 1 ? "Clear page selection" : "1 page selected";
 }
 
 function beginPageDrag(event, pageId, button) {
@@ -501,20 +589,19 @@ function renderSelectedPage() {
   const editable = hasPage && state.session?.status !== "saved";
   $("#empty-canvas").hidden = hasPage; $("#page-stage").hidden = !hasPage;
   $("#page-management").hidden = !hasPage;
-  ["#rotate-left", "#rotate-right", "#crop-toggle", "#delete-page"].forEach(id => $(id).disabled = !editable);
+  ["#rotate-left", "#rotate-right"].forEach(id => $(id).disabled = !editable || state.rotationPending);
+  ["#crop-toggle", "#delete-page"].forEach(id => $(id).disabled = !editable);
   if (!editable) stopCropEditing();
   if (!page) {
     updateCropVisibility();
     return;
   }
-  $("#page-image").src = `${page.imageUrl}?v=${encodeURIComponent(state.session.updatedAt)}`;
-  $("#page-image").style.transform = `translate(-50%, -50%) rotate(${page.rotation}deg)`;
-  $("#page-stage").classList.toggle("rotated", page.rotation === 90 || page.rotation === 270);
-  $("#selected-page-title").textContent = `Page ${page.number}`;
-  $("#selected-page-meta").textContent = `US Letter · ${$("#resolution").value} dpi · ${labelForBitDepth($("#bit-depth").value)}`;
-  const cropped = page.crop && (page.crop.x > 0 || page.crop.y > 0 || page.crop.width < 1 || page.crop.height < 1);
-  $("#crop-state").textContent = cropped ? "Cropped" : "Full page";
-  $("#page-stage").style.setProperty("--zoom", state.zoom);
+  const image = $("#page-image");
+  image.src = `${page.imageUrl}?v=${encodeURIComponent(state.session.updatedAt)}`;
+  const visualCrop = state.cropEditing
+    ? { x: 0, y: 0, width: 1, height: 1 }
+    : sourceToVisualCrop(page.crop, page.rotation || 0);
+  renderPagePreview(page, visualCrop);
   $("#zoom-label").textContent = `${Math.round(state.zoom * 100)}%`;
   if (state.cropEditing) {
     if (state.cropDraftPageId !== page.id) loadCropDraft(page);
@@ -525,14 +612,19 @@ function renderSelectedPage() {
 
 async function rotate(degrees) {
   const page = selectedPage(); if (!page) return;
-  if (state.session?.status === "saved") return;
+  if (state.session?.status === "saved" || state.rotationPending) return;
+  const pageIds = selectedPageIdsInOrder() || [page.id];
+  state.rotationPending = true;
+  renderSelectedPage();
   try {
-    state.session = await api(`/api/v1/sessions/${state.session.id}/pages/${page.id}/rotate`, {
-      method: "POST", body: JSON.stringify({ degrees })
+    state.session = await api(`/api/v1/sessions/${state.session.id}/pages/rotate`, {
+      method: "POST", body: JSON.stringify({ pageIds, degrees })
     });
     stopCropEditing();
     renderSession();
+    toast(pageIds.length === 1 ? "Page rotated" : `${pageIds.length} selected pages rotated`);
   } catch (error) { showError(error); }
+  finally { state.rotationPending = false; renderSelectedPage(); }
 }
 
 function toggleCrop() {
@@ -542,7 +634,7 @@ function toggleCrop() {
     state.cropEditing = true;
     loadCropDraft(selectedPage());
   }
-  updateCropVisibility();
+  renderSelectedPage();
 }
 
 function updateCropVisibility() {
@@ -578,7 +670,7 @@ function renderCropScope() {
   const count = state.selectedPageIds.size;
   const option = $("#crop-selected-option");
   option.hidden = !state.cropEditing || count < 2;
-  $("#crop-selected-label").textContent = `Apply to all ${count} selected pages`;
+  $("#crop-selected-label").textContent = "Apply to selection";
   if (option.hidden) $("#crop-apply-selected").checked = false;
 }
 
@@ -600,6 +692,69 @@ function sourceToVisualCrop(crop = { x: 0, y: 0, width: 1, height: 1 }, rotation
       : rotation === 270
         ? { x: value.y, y: 1 - value.x - value.width, width: value.height, height: value.width }
         : { ...value };
+}
+
+function isFullCrop(crop) {
+  return !crop || (crop.x <= .000001 && crop.y <= .000001 && crop.width >= .999999 && crop.height >= .999999);
+}
+
+function pagePreviewMetrics(page) {
+  const rotation = ((page.rotation || 0) % 360 + 360) % 360;
+  const rotated = rotation === 90 || rotation === 270;
+  return {
+    rotation,
+    sourceWidth: 680,
+    sourceHeight: 880,
+    visualWidth: rotated ? 880 : 680,
+    visualHeight: rotated ? 680 : 880
+  };
+}
+
+function renderPagePreview(page, crop) {
+  const stage = $("#page-stage"), frame = $("#page-image-frame"), image = $("#page-image");
+  const metrics = pagePreviewMetrics(page), normalizedCrop = normalizeCrop(crop);
+  const fullWidth = metrics.visualWidth * state.zoom;
+  const fullHeight = metrics.visualHeight * state.zoom;
+
+  stage.style.width = `${fullWidth * normalizedCrop.width}px`;
+  stage.style.height = `${fullHeight * normalizedCrop.height}px`;
+  stage.style.setProperty("--zoom", state.zoom);
+  stage.classList.toggle("rotated", metrics.rotation === 90 || metrics.rotation === 270);
+  stage.classList.toggle("cropped", !isFullCrop(normalizedCrop));
+
+  frame.style.width = `${fullWidth}px`;
+  frame.style.height = `${fullHeight}px`;
+  frame.style.left = `${-normalizedCrop.x * fullWidth}px`;
+  frame.style.top = `${-normalizedCrop.y * fullHeight}px`;
+  image.style.width = `${metrics.sourceWidth * state.zoom}px`;
+  image.style.height = `${metrics.sourceHeight * state.zoom}px`;
+  image.style.transform = `translate(-50%, -50%) rotate(${metrics.rotation}deg)`;
+}
+
+function renderThumbnailPreview(button, page) {
+  const paper = button.querySelector(".thumb-paper");
+  const frame = button.querySelector(".thumb-image-frame");
+  const image = frame.querySelector("img");
+  const metrics = pagePreviewMetrics(page);
+  const crop = normalizeCrop(sourceToVisualCrop(page.crop, metrics.rotation));
+  const viewportWidth = 40, viewportHeight = 54;
+  const scale = Math.min(
+    viewportWidth / (metrics.visualWidth * crop.width),
+    viewportHeight / (metrics.visualHeight * crop.height)
+  );
+  const fullWidth = metrics.visualWidth * scale;
+  const fullHeight = metrics.visualHeight * scale;
+  const marginLeft = (viewportWidth - fullWidth * crop.width) / 2;
+  const marginTop = (viewportHeight - fullHeight * crop.height) / 2;
+
+  paper.classList.toggle("cropped", !isFullCrop(crop));
+  frame.style.width = `${fullWidth}px`;
+  frame.style.height = `${fullHeight}px`;
+  frame.style.left = `${marginLeft - crop.x * fullWidth}px`;
+  frame.style.top = `${marginTop - crop.y * fullHeight}px`;
+  image.style.width = `${metrics.sourceWidth * scale}px`;
+  image.style.height = `${metrics.sourceHeight * scale}px`;
+  image.style.transform = `translate(-50%, -50%) rotate(${metrics.rotation}deg)`;
 }
 
 function visualToSourceCrop(crop, rotation = 0) {
@@ -731,7 +886,7 @@ function movePageSelection(offset, extendRange = false) {
 function cancelCropOrSelection() {
   if (state.cropEditing) {
     stopCropEditing();
-    updateCropVisibility();
+    renderSelectedPage();
   } else if (state.selectedPageIds.size) {
     clearPageSelection();
   } else if (state.failedJob) {
@@ -743,7 +898,14 @@ function handleKeyboardShortcut(event) {
   const modifier = event.metaKey || event.ctrlKey;
   const key = event.key.toLowerCase();
   const typing = isTypingTarget(event.target);
-  if (document.querySelector("dialog[open]")) return;
+  if (profileOverlayOpen()) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      if (!$("#profile-dialog").hidden) closeProfileEditor();
+      else closeProfileOverlay();
+    }
+    return;
+  }
 
   if (modifier && !event.altKey) {
     if (["+", "="].includes(event.key)) {
@@ -829,6 +991,18 @@ async function removePage(confirmRemoval = true) {
   finally { state.pageDeletePending = false; }
 }
 
+function handleCanvasWheel(event) {
+  if (!selectedPage() || event.deltaY === 0) return;
+  event.preventDefault();
+  const modeScale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 240 : 1;
+  const zoomDelta = clamp(event.deltaY * modeScale * .0008, -.08, .08);
+  const stage = $("#page-stage");
+  stage.classList.add("wheel-zooming");
+  clearTimeout(state.wheelZoomTimer);
+  state.wheelZoomTimer = setTimeout(() => stage.classList.remove("wheel-zooming"), 120);
+  setZoom(state.zoom - zoomDelta);
+}
+
 function setZoom(value) { state.zoom = clamp(value, .4, 1.08); renderSelectedPage(); }
 function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
 
@@ -842,16 +1016,15 @@ function formatDetails() {
 }
 
 function updateOutputFormat() {
-  const format = formatDetails(), saved = state.session?.status === "saved", count = state.selectedPageIds.size;
-  const selectedLabel = count ? `${count} ${count === 1 ? "page" : "pages"} as ` : "";
+  const format = formatDetails(), saved = state.session?.status === "saved";
   $("#output-extension").textContent = format.extension;
-  $("#save-document").textContent = saved ? `${format.label} saved` : `Save ${selectedLabel}${format.label}`;
-  $("#download-document").textContent = `Download ${selectedLabel}${format.label}`;
+  $("#save-document").textContent = saved ? "Saved" : "Save";
+  $("#download-document").textContent = "Download";
 }
 
 function scheduleTitleSave() {
   const title = $("#document-title").value;
-  if (!state.outputNameTouched) $("#output-filename").value = slug(title);
+  if (!state.outputNameTouched) $("#output-filename").value = defaultOutputStem(title);
   clearTimeout(state.titleTimer);
   state.titleTimer = setTimeout(async () => {
     try {
@@ -878,7 +1051,7 @@ async function newSession() {
 async function saveDocument() {
   if (state.session.status === "saved") return toast("This document is already saved", true);
   if (!state.session.pages.length) return toast("Scan at least one page before saving", true);
-  const title = $("#document-title").value.trim() || "Untitled scan";
+  const title = $("#document-title").value.trim() || state.session.title || defaultDocumentTitle();
   const fileName = $("#output-filename").value.trim();
   const format = formatDetails();
   if (!fileName) return toast("Enter a file name before saving", true);
@@ -904,7 +1077,7 @@ async function saveDocument() {
 
 async function downloadDocument() {
   if (!state.session.pages.length) return toast("Scan at least one page before downloading", true);
-  const title = $("#document-title").value.trim() || state.session.title || "Untitled scan";
+  const title = $("#document-title").value.trim() || state.session.title || defaultDocumentTitle();
   const fileName = $("#output-filename").value.trim();
   const format = formatDetails();
   if (!fileName) return toast("Enter a file name before downloading", true);
@@ -956,12 +1129,17 @@ async function loadHistory() {
 function setTab(tab) {
   const history = tab === "history";
   $("#inspector-panel").hidden = history; $("#history-panel").hidden = !history;
-  $("#inspector-tab").classList.toggle("active", !history); $("#history-tab").classList.toggle("active", history);
-  $("#inspector-tab").setAttribute("aria-selected", String(!history)); $("#history-tab").setAttribute("aria-selected", String(history));
+  $("#history-tab").classList.toggle("active", history);
+  $("#history-tab").setAttribute("aria-pressed", String(history));
+}
+
+function toggleHistory() {
+  setTab($("#history-panel").hidden ? "history" : "inspector");
 }
 
 function slug(value) {
-  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `scan-${new Date().toISOString().slice(0, 10)}`;
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") ||
+    defaultDocumentTitle().slice(5).replace(/[-:]/g, "").replace(/^/, "scan-");
 }
 
 function escapeHtml(value) {
