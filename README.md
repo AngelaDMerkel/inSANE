@@ -33,7 +33,7 @@ This is the smallest useful Compose file for trying inSANE without a scanner. It
 ```yaml
 services:
   insane:
-    image: docker.io/angeladmerkel/insane:1.0.0-amd64
+    image: docker.io/angeladmerkel/insane:latest
     ports:
       - "51234:8080"
     volumes:
@@ -50,7 +50,7 @@ For a scanner attached directly to a Linux Docker host, disable the demo by omit
 ```yaml
 services:
   insane:
-    image: docker.io/angeladmerkel/insane:1.0.0-amd64
+    image: docker.io/angeladmerkel/insane:latest
     restart: unless-stopped
     privileged: true
     ports:
