@@ -30,7 +30,7 @@ public sealed class Naps2Runtime : IDisposable
     public void Dispose() => Context.Dispose();
 }
 
-public static class DriverCatalog
+public static class DriverCatalogue
 {
     public static IReadOnlyList<DriverSupport> Get(bool includeDemo)
     {
@@ -652,9 +652,9 @@ internal static class DeviceKey
     {
         try
         {
-            var normalized = key.Replace('-', '+').Replace('_', '/');
-            normalized = normalized.PadRight(normalized.Length + (4 - normalized.Length % 4) % 4, '=');
-            var parts = Encoding.UTF8.GetString(Convert.FromBase64String(normalized)).Split('\n');
+            var normalised = key.Replace('-', '+').Replace('_', '/');
+            normalised = normalised.PadRight(normalised.Length + (4 - normalised.Length % 4) % 4, '=');
+            var parts = Encoding.UTF8.GetString(Convert.FromBase64String(normalised)).Split('\n');
             if (parts.Length != 3) throw new FormatException();
             return parts;
         }

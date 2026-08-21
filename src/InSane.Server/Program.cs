@@ -91,7 +91,7 @@ api.MapGet("/system", (StoragePaths paths, IOptions<InSaneOptions> options) => R
 }));
 
 api.MapGet("/drivers", (IOptions<InSaneOptions> options) =>
-    Results.Ok(DriverCatalog.Get(options.Value.Scanner.EnableDemo)));
+    Results.Ok(DriverCatalogue.Get(options.Value.Scanner.EnableDemo)));
 
 api.MapGet("/devices", async (ScannerRouter scanner, CancellationToken cancellationToken) =>
     Results.Ok(await scanner.GetDevicesAsync(cancellationToken)));
@@ -210,7 +210,7 @@ api.MapPost("/sessions/{sessionId:guid}/pages/{pageId:guid}/crop",
     {
         if (request is { X: < 0 } or { Y: < 0 } || request.Width <= 0 || request.Height <= 0 ||
             request.X + request.Width > 1.00001 || request.Y + request.Height > 1.00001)
-            return Results.BadRequest(new { detail = "Crop values must describe a positive normalized rectangle inside the page." });
+            return Results.BadRequest(new { detail = "Crop values must describe a positive normalised rectangle inside the page." });
         var found = false;
         var updated = await sessions.UpdateAsync(sessionId, session =>
         {
@@ -231,7 +231,7 @@ api.MapPost("/sessions/{sessionId:guid}/pages/crop",
             return Results.BadRequest(new { detail = "The crop selection contains duplicate pages." });
         if (request is { X: < 0 } or { Y: < 0 } || request.Width <= 0 || request.Height <= 0 ||
             request.X + request.Width > 1.00001 || request.Y + request.Height > 1.00001)
-            return Results.BadRequest(new { detail = "Crop values must describe a positive normalized rectangle inside the page." });
+            return Results.BadRequest(new { detail = "Crop values must describe a positive normalised rectangle inside the page." });
 
         var pageIds = request.PageIds.ToHashSet();
         var updated = await sessions.UpdateAsync(sessionId, session =>

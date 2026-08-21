@@ -56,7 +56,7 @@ function selectIfAvailable(selector, value) {
   if ([...select.options].some(item => item.value === String(value))) select.value = String(value);
 }
 
-async function initialize() {
+async function initialise() {
   wireEvents();
   const initialTitle = defaultDocumentTitle();
   $("#document-title").value = initialTitle;
@@ -712,20 +712,20 @@ function pagePreviewMetrics(page) {
 
 function renderPagePreview(page, crop) {
   const stage = $("#page-stage"), frame = $("#page-image-frame"), image = $("#page-image");
-  const metrics = pagePreviewMetrics(page), normalizedCrop = normalizeCrop(crop);
+  const metrics = pagePreviewMetrics(page), normalisedCrop = normaliseCrop(crop);
   const fullWidth = metrics.visualWidth * state.zoom;
   const fullHeight = metrics.visualHeight * state.zoom;
 
-  stage.style.width = `${fullWidth * normalizedCrop.width}px`;
-  stage.style.height = `${fullHeight * normalizedCrop.height}px`;
+  stage.style.width = `${fullWidth * normalisedCrop.width}px`;
+  stage.style.height = `${fullHeight * normalisedCrop.height}px`;
   stage.style.setProperty("--zoom", state.zoom);
   stage.classList.toggle("rotated", metrics.rotation === 90 || metrics.rotation === 270);
-  stage.classList.toggle("cropped", !isFullCrop(normalizedCrop));
+  stage.classList.toggle("cropped", !isFullCrop(normalisedCrop));
 
   frame.style.width = `${fullWidth}px`;
   frame.style.height = `${fullHeight}px`;
-  frame.style.left = `${-normalizedCrop.x * fullWidth}px`;
-  frame.style.top = `${-normalizedCrop.y * fullHeight}px`;
+  frame.style.left = `${-normalisedCrop.x * fullWidth}px`;
+  frame.style.top = `${-normalisedCrop.y * fullHeight}px`;
   image.style.width = `${metrics.sourceWidth * state.zoom}px`;
   image.style.height = `${metrics.sourceHeight * state.zoom}px`;
   image.style.transform = `translate(-50%, -50%) rotate(${metrics.rotation}deg)`;
@@ -736,7 +736,7 @@ function renderThumbnailPreview(button, page) {
   const frame = button.querySelector(".thumb-image-frame");
   const image = frame.querySelector("img");
   const metrics = pagePreviewMetrics(page);
-  const crop = normalizeCrop(sourceToVisualCrop(page.crop, metrics.rotation));
+  const crop = normaliseCrop(sourceToVisualCrop(page.crop, metrics.rotation));
   const viewportWidth = 40, viewportHeight = 54;
   const scale = Math.min(
     viewportWidth / (metrics.visualWidth * crop.width),
@@ -767,7 +767,7 @@ function visualToSourceCrop(crop, rotation = 0) {
         : { ...crop };
 }
 
-function normalizeCrop(crop) {
+function normaliseCrop(crop) {
   const round = value => Math.round(clamp(value, 0, 1) * 1e6) / 1e6;
   const x = round(crop.x), y = round(crop.y);
   return {
@@ -825,7 +825,7 @@ function updateCropDrag(event) {
     }
   }
 
-  state.cropDraft = normalizeCrop(crop);
+  state.cropDraft = normaliseCrop(crop);
   renderCropOverlay();
   event.preventDefault();
 }
@@ -841,7 +841,7 @@ function endCropDrag(event) {
 async function applyCrop() {
   const page = selectedPage();
   if (!page || !state.cropDraft) return;
-  const crop = normalizeCrop(visualToSourceCrop(state.cropDraft, page.rotation || 0));
+  const crop = normaliseCrop(visualToSourceCrop(state.cropDraft, page.rotation || 0));
   if (crop.width <= .01 || crop.height <= .01) return toast("The crop area is too small", true);
   const applyToSelection = $("#crop-apply-selected").checked && state.selectedPageIds.size > 1;
   const pageIds = applyToSelection ? selectedPageIdsInOrder() : [page.id];
@@ -1154,4 +1154,4 @@ function toast(message, error = false) {
 }
 function showError(error) { console.error(error); toast(error.message || "Something went wrong", true); }
 
-initialize();
+initialise();

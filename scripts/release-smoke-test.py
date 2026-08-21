@@ -133,7 +133,7 @@ def main() -> int:
     _, _, drivers = request_json(base, "/api/v1/drivers")
     driver_names = {driver["driver"] for driver in drivers}
     require({"demo", "sane", "escl", "wia", "twain", "apple"} <= driver_names,
-            "driver catalog is incomplete")
+            "driver catalogue is incomplete")
     _, _, devices = request_json(base, "/api/v1/devices")
     demo = next((device for device in devices if device["driver"] == "demo"), None)
     require(demo is not None, "demo scanner was not discovered")
@@ -146,7 +146,7 @@ def main() -> int:
     require("letter" in capabilities["sources"]["duplex"]["pageSizes"], "Letter is unavailable")
     require(capabilities["sources"]["duplex"]["supportsAutomaticPageSize"] is True,
             "automatic paper sizing is unavailable")
-    passed("driver catalog, discovery, and source-aware sizing capabilities")
+    passed("driver catalogue, discovery, and source-aware sizing capabilities")
 
     settings = {
         "deviceKey": device_key,

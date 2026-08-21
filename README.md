@@ -13,40 +13,24 @@ inSANE is a functional, modern web frontend for [NAPS2.Sdk](https://github.com/c
 ## What is implemented
 
 - NAPS2-backed SANE and eSCL/AirScan device discovery in the Linux container.
-- Device-reported source discovery for flatbed, feeder, and hardware duplex,
-  with resolution, bit-depth, and page-size choices recalculated per source.
-- Exact NAPS2 page sizes, including US Letter at 8.5 x 11 inches, plus
-  automatic sizing when the driver reports a maximum scan area. Automatic mode
-  scans that area and removes a contrasting scanner background from each page.
-- Full per-device profile management: create, rename, update, duplicate,
-  delete, apply, and choose a physical-button default.
-- Advanced NAPS2 scan controls for brightness, contrast, blank-page white
-  threshold, and blank-page coverage threshold.
+- Device-reported source discovery for flatbed, feeder, and hardware duplex, with resolution, bit-depth, and page-size choices recalculated per source.
+- Exact NAPS2 page sizes, including US Letter at 8.5 x 11 inches, plus automatic sizing when the driver reports a maximum scan area. Automatic mode scans that area and removes a contrasting scanner background from each page.
+- Full per-device profile management: create, rename, update, duplicate, delete, apply, and choose a physical-button default.
+- Advanced NAPS2 scan controls for brightness, contrast, blank-page white threshold, and blank-page coverage threshold.
 - Asynchronous scan jobs whose pages accrue into persistent document sessions.
-- A live page filmstrip, selected-page canvas, single- and multi-page 90-degree
-  rotation, normalized crop, persisted drag-to-reorder, page removal, PDF
-  completion, direct browser download, and document history.
-- Atomic PDF and multi-page TIFF publication: the document is fully exported
-  within `/data/output` before it receives its final file name.
-- ZIP export with one processed PNG or JPEG per page, preserving document order,
-  rotation, and crop settings for both bind-mount saves and browser downloads.
-- The browser does not expose an output-folder picker. Server saves always use
-  the configured `/data/output` bind mount; browser downloads return a
-  temporary PDF, TIFF, or ZIP copy directly to the current browser instead.
-- Shift-click page-range selection for non-destructive document splitting.
-  Bind-mount saves create a separate history record for the selected pages and
-  leave the source session open for the next split.
-- Structured scan failures with recovery guidance and one-click retry; pages
-  received before an interruption remain in the current document.
-- A token-protected scanner-button action compatible with a scanbd/scanbm
-  Docker bridge.
+- A live page filmstrip, selected-page canvas, single- and multi-page 90-degree rotation, normalised crop, persisted drag-to-reorder, page removal, PDF completion, direct browser download, and document history.
+- Atomic PDF and multi-page TIFF publication: the document is fully exported within `/data/output` before it receives its final file name.
+- ZIP export with one processed PNG or JPEG per page, preserving document order, rotation, and crop settings for both bind-mount saves and browser downloads.
+- The browser does not expose an output-folder picker. Server saves always use the configured `/data/output` bind mount; browser downloads return a temporary PDF, TIFF, or ZIP copy directly to the current browser instead.
+- Shift-click page-range selection for non-destructive document splitting. Bind-mount saves create a separate history record for the selected pages and leave the source session open for the next split.
+- Structured scan failures with recovery guidance and one-click retry; pages received before an interruption remain in the current document.
+- A token-protected scanner-button action compatible with a scanbd/scanbm Docker bridge.
 
 ## Docker Compose
 
 ### Minimal demo
 
-This is the smallest useful Compose file for trying inSANE without a scanner.
-It preserves sessions and completed documents in local bind mounts:
+This is the smallest useful Compose file for trying inSANE without a scanner. It preserves sessions and completed documents in local bind mounts:
 
 ```yaml
 services:
@@ -63,8 +47,7 @@ services:
 
 ### Physical USB scanner
 
-For a scanner attached directly to a Linux Docker host, disable the demo by
-omitting `InSane__Scanner__EnableDemo` and grant the container USB access:
+For a scanner attached directly to a Linux Docker host, disable the demo by omitting `InSane__Scanner__EnableDemo` and grant the container USB access:
 
 ```yaml
 services:
@@ -82,8 +65,7 @@ services:
       PGID: "568"
 ```
 
-`privileged: true` is not required for the demonstration scanner or for a
-network eSCL/AirScan device.
+`privileged: true` is not required for the demonstration scanner or for a network eSCL/AirScan device.
 
 ### Compose service options
 
@@ -100,9 +82,7 @@ network eSCL/AirScan device.
 | `init` | No | Adds a small PID 1 that forwards signals and reaps child processes. The image runs without it. |
 | `container_name` | No | Assigns a fixed Docker container name. Compose otherwise generates one from the project and service names. |
 
-The image supplies a health check and defaults its internal storage paths to
-`/data/state` and `/data/output`, so these do not need to be repeated in
-Compose.
+The image supplies a health check and defaults its internal storage paths to `/data/state` and `/data/output`, so these do not need to be repeated in Compose.
 
 ### inSANE environment variables
 
@@ -134,3 +114,7 @@ Compose.
 | `Enter` | Apply the active crop |
 | `Escape` | Cancel crop mode or clear the page selection |
 | `Backspace` / `Delete` | Remove the current page |
+
+## Licence
+
+inSANE is licensed under the [GNU General Public License version 2 or any later version](LICENSE) (`GPL-2.0-or-later`) to remain compatible with the directly linked NAPS2 SDK. NAPS2 and other dependency notices are recorded in [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES).
