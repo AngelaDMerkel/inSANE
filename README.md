@@ -5,7 +5,7 @@
 inSANE is a functional, modern web frontend for [NAPS2.Sdk](https://github.com/cyanfish/naps2/tree/master/NAPS2.Sdk). It simplifies multi-user access to scanners and supports direct output to a [paperless-ngx](https://github.com/paperless-ngx/paperless-ngx) [consume directory](https://docs.paperless-ngx.com/usage/#the-consumption-directory). Most NAPS2 functionality is included, with focused omissions that keep the interface centred on a streamlined scanning process.
 
 <p align="center">
-  <img src="assets/insane-demo.jpg" alt="The inSANE demo environment" width="1100" style="border-radius: 12px;">
+  <img src="assets/insane-demo.png" alt="The inSANE demo environment" width="1100" style="border-radius: 12px;">
   <br>
   <em>A screenshot of the inSANE demo environment</em>
 </p>
