@@ -43,6 +43,8 @@ services:
       InSane__Scanner__EnableDemo: "true"
 ```
 
+The `latest` image publishes native `linux/amd64` and `linux/arm64` manifests; Docker selects the appropriate architecture automatically.
+
 ### Physical USB scanner
 
 For a scanner attached directly to a Linux Docker host, disable the demo by omitting `InSane__Scanner__EnableDemo` and grant the container USB access:
@@ -69,14 +71,14 @@ services:
 
 | Option | Required | Purpose |
 | --- | --- | --- |
-| `image` | Yes, unless using `build` | Image to run. The currently published image is `docker.io/angeladmerkel/insane:1.0.0-amd64`. |
+| `image` | Yes, unless using `build` | Image to run. The current multi-architecture image is `docker.io/angeladmerkel/insane:latest`. |
 | `build` | No | Builds from a local repository checkout. Use this instead of the published image workflow; do not combine it with `pull_policy: always`. |
 | `ports` | Yes for direct browser access | Maps a host port to inSANE's container port `8080`, for example `51234:8080`. |
 | `volumes` | Strongly recommended | `/data/state` stores profiles, sessions, page images, and recovery state. `/data/output` receives completed documents. |
 | `restart` | No | `unless-stopped` is recommended for an unattended server. |
 | `privileged` | USB only | Grants broad hardware access for scanners attached to the Docker host. Omit it for demo and network-only scanning. |
-| `platform` | Usually no | The published image is `linux/amd64`. Native AMD64 hosts select it automatically; `platform: linux/amd64` is only needed when intentionally using emulation on another architecture. |
-| `pull_policy` | No | The default policy is sufficient with a versioned tag. Use `always` only when deliberately tracking a mutable tag. |
+| `platform` | No | The image publishes native `linux/amd64` and `linux/arm64` manifests. Omit this option so Docker selects the host architecture automatically. |
+| `pull_policy` | No | Docker pulls `latest` when required. Add `always` only when you want Compose to check the registry on every start. |
 | `init` | No | Adds a small PID 1 that forwards signals and reaps child processes. The image runs without it. |
 | `container_name` | No | Assigns a fixed Docker container name. Compose otherwise generates one from the project and service names. |
 

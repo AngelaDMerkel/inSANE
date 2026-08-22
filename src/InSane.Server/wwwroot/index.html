@@ -9,7 +9,7 @@
   <title>inSANE</title>
   <link rel="icon" href="/brand/insane-favicon.svg?v=base-06-feed-layer" type="image/svg+xml">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="stylesheet" href="/app.css?v=workbench-36">
+  <link rel="stylesheet" href="/app.css?v=workbench-37">
 </head>
 <body>
   <div class="app-shell">
@@ -205,7 +205,13 @@
         <div id="inspector-panel" class="inspector-panel">
           <section id="page-management" class="page-management floating-sheet" hidden>
             <div class="page-focus-row">
-              <button id="page-focus-number" class="page-focus-number" type="button" title="Clear page selection" aria-label="1 page selected">1</button>
+              <button id="page-focus-number" class="page-focus-number" type="button" title="1 page selected" aria-label="1 page selected">
+                <span class="page-focus-sheet page-focus-sheet-back-two" aria-hidden="true"></span>
+                <span class="page-focus-sheet page-focus-sheet-back-one" aria-hidden="true"></span>
+                <span class="page-focus-sheet page-focus-sheet-front" aria-hidden="true"></span>
+                <span id="page-focus-count" class="page-focus-count">1</span>
+              </button>
+              <span class="page-focus-divider" aria-hidden="true"></span>
               <div class="page-tool-grid" role="group" aria-label="Selected page tools">
                 <button id="rotate-left" class="tool-button" type="button" title="Rotate left ([)" aria-label="Rotate left" aria-keyshortcuts="[" disabled>
                   <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg>
@@ -279,6 +285,6 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="/app.js?v=workbench-36" defer></script>
+  <script src="/app.js?v=workbench-37" defer></script>
 </body>
 </html>

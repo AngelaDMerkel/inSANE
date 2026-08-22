@@ -512,9 +512,15 @@ function selectedPageIdsInOrder() {
 function renderExportScope() {
   const count = state.selectedPageIds.size || (selectedPage() ? 1 : 0);
   const indicator = $("#page-focus-number");
-  indicator.textContent = count;
+  $("#page-focus-count").textContent = count;
+  indicator.classList.toggle("multiple", count > 1);
   indicator.setAttribute("aria-label", `${count} ${count === 1 ? "page" : "pages"} selected`);
   indicator.title = count > 1 ? "Clear page selection" : "1 page selected";
+  const multiple = count > 1;
+  $("#rotate-left").setAttribute("aria-label", multiple ? "Rotate selected pages left" : "Rotate left");
+  $("#rotate-right").setAttribute("aria-label", multiple ? "Rotate selected pages right" : "Rotate right");
+  $("#crop-toggle").setAttribute("aria-label", multiple ? "Crop selected pages" : "Crop page");
+  $("#delete-page").setAttribute("aria-label", multiple ? "Remove selected pages" : "Remove page");
 }
 
 function beginPageDrag(event, pageId, button) {

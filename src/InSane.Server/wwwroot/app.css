@@ -197,9 +197,20 @@ progress::-moz-progress-bar { background: var(--accent); }
 .action-icon { width: 17px; height: 17px; fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 .page-management { padding: 5px var(--row-select-space) 5px 9px; }
-.page-focus-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 7px; min-height: 35px; }
-.page-focus-number { display: grid; width: 25px; height: 31px; place-items: end start; padding: 3px; border: 0; border-radius: 4px; color: var(--accent); background: var(--surface-strong); font-size: 8px; font-weight: 700; }
-.page-tool-grid { display: flex; justify-self: end; gap: 3px; }
+.page-focus-row { display: grid; grid-template-columns: 42px 1px minmax(0, 1fr); align-items: center; gap: 7px; min-height: 35px; }
+.page-focus-number { position: relative; width: 30px; height: 34px; justify-self: center; padding: 0; border: 0; color: var(--accent); background: transparent; }
+.page-focus-sheet { position: absolute; width: 25px; height: 31px; border: 1px solid var(--line); border-radius: 5px; background: #fff; }
+.page-focus-sheet::before { position: absolute; top: 5px; right: 4px; left: 4px; height: 3px; background: var(--accent); content: ""; }
+.page-focus-sheet-back-two { left: 0; top: 0; opacity: .58; }
+.page-focus-sheet-back-one { left: 2px; top: 1px; opacity: .76; }
+.page-focus-sheet-front { left: 4px; top: 3px; }
+.page-focus-count { position: absolute; right: 1px; bottom: 0; z-index: 2; display: grid; min-width: 14px; height: 14px; place-items: center; padding: 0 2px; border-radius: 4px; color: #fffdf9; background: var(--accent); box-shadow: 0 1px 3px rgba(55, 46, 40, .18); font-size: 8px; font-weight: 700; }
+.page-focus-number:not(.multiple) .page-focus-sheet-back-two, .page-focus-number:not(.multiple) .page-focus-sheet-back-one { display: none; }
+.page-focus-number:not(.multiple) .page-focus-sheet-front { left: 2px; top: 1px; }
+.page-focus-number:not(.multiple) .page-focus-count { right: 3px; color: var(--accent); background: transparent; box-shadow: none; }
+.page-focus-divider { height: 27px; background: var(--line); }
+.page-tool-grid { display: grid; height: 35px; grid-template-columns: repeat(4, 1fr); justify-self: stretch; gap: 0; }
+.page-tool-grid .tool-button { width: 31px; min-height: 31px; justify-self: center; border-color: transparent; background: transparent; }
 .button-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .tool-button { display: grid; place-items: center; width: 25px; min-height: 25px; padding: 4px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); }
 .tool-icon { width: 14px; height: 14px; fill: none; stroke: var(--accent); stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }

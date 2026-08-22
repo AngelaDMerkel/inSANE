@@ -1,6 +1,6 @@
 services:
   insane:
-    image: docker.io/angeladmerkel/insane:1.0.0-amd64
+    image: docker.io/angeladmerkel/insane:latest
     restart: unless-stopped
     privileged: true
     ports:

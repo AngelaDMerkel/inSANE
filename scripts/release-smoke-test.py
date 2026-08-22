@@ -321,14 +321,14 @@ def main() -> int:
     require("canvas-viewport" in page and "page-focus-row" in page and "inspector-rows" in page and
             "page-carousel" in page and "crop-apply-selected" in page and
             "sidebar-brand" in page and "page-image-frame" in page and "history-button" in page and
-            "workbench-36" in page and "app-header" not in page and "role=\"tablist\"" not in page and
+            "workbench-37" in page and "page-focus-sheet" in page and "app-header" not in page and "role=\"tablist\"" not in page and
             "selected-page-title" not in page and "export-scope" not in page and
             "profile-manager-new" in page and "new-profile" in page and "profile-utilities" in page and
             "save-profile" not in page,
             "deployed UI is missing the final canvas or crop controls")
     require(page.index('id="scan-progress"') < page.index('id="scan" class="button scan-button"'),
             "scan progress must render above the fixed scan button")
-    _, _, script = request(base, "/app.js?v=workbench-36")
+    _, _, script = request(base, "/app.js?v=workbench-37")
     script_text = script.decode("utf-8")
     require("Scanner connected" not in script_text and "renderPagePreview" in script_text and
             "renderThumbnailPreview" in script_text and "handleCanvasWheel" in script_text and
