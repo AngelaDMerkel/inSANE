@@ -190,6 +190,9 @@ public sealed class Naps2ScannerBackend : IScannerBackend
             }
             options.Dpi = settings.Resolution;
             options.BitDepth = ParseBitDepth(settings.BitDepth);
+            // Fixed paper sizes should determine the captured and exported geometry. NAPS2 crops
+            // scanner overscan to the requested size without stretching the image.
+            options.CropToPageSize = !automaticallySizePage;
             options.AutoDeskew = settings.AutoDeskew;
             options.ExcludeBlankPages = settings.DiscardBlankPages;
             options.FlipDuplexedPages = settings.FlipDuplexBacks;
