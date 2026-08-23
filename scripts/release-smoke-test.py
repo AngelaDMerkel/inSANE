@@ -101,6 +101,12 @@ def jpeg_dimensions(payload: bytes):
     raise SmokeFailure("JPEG dimensions were not found")
 
 
+def pdf_media_boxes(payload: bytes):
+    number = rb"([+-]?(?:\d+(?:\.\d*)?|\.\d+))"
+    pattern = rb"/MediaBox\s*\[\s*" + rb"\s+".join([number] * 4) + rb"\s*\]"
+    return [tuple(float(value) for value in match.groups()) for match in re.finditer(pattern, payload)]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://127.0.0.1:51235")
@@ -194,6 +200,8 @@ def main() -> int:
         dimensions = jpeg_dimensions(image)
         require(dimensions == (850, 1100),
                 f"automatic paper sizing did not remove the demo scanner background: {dimensions}")
+        require((page["pixelWidth"], page["pixelHeight"]) == dimensions,
+                f"page metadata does not match the scanned image dimensions: {page}")
     passed("asynchronous duplex scan, automatic paper sizing, and live page images")
 
     original_ids = [page["id"] for page in session["pages"]]
@@ -305,10 +313,21 @@ def main() -> int:
     poll_job(base, cancel_job["id"], terminal=("cancelled",))
 
     delete_session = create_session(base, "Page deletion release gate")
-    feeder_settings = {**settings, "paperSource": "feeder"}
+    feeder_settings = {**settings, "paperSource": "feeder", "pageSize": "legal"}
     delete_job = start_scan(base, delete_session["id"], feeder_settings)
     poll_job(base, delete_job["id"])
     _, _, delete_session = request_json(base, f"/api/v1/sessions/{delete_session['id']}")
+    require(all((page["pixelWidth"], page["pixelHeight"]) == (850, 1400)
+                for page in delete_session["pages"]),
+            "Legal demo pages did not preserve 8.5 by 14 geometry")
+    _, _, legal_pdf = request(base, f"/api/v1/sessions/{delete_session['id']}/download", "POST", {
+        "title": "Legal geometry release gate",
+        "fileName": "legal-geometry-release-gate",
+        "format": "pdf",
+        "pageIds": None,
+    })
+    require(pdf_media_boxes(legal_pdf) == [(0.0, 0.0, 612.0, 1008.0)] * 2,
+            f"Legal PDF pages are not 8.5 by 14 inches: {pdf_media_boxes(legal_pdf)}")
     page_to_delete = delete_session["pages"][0]["id"]
     request(base, f"/api/v1/sessions/{delete_session['id']}/pages/{page_to_delete}", "DELETE",
             expected=(204,))
@@ -321,22 +340,28 @@ def main() -> int:
     require("canvas-viewport" in page and "page-focus-row" in page and "inspector-rows" in page and
             "page-carousel" in page and "crop-apply-selected" in page and
             "sidebar-brand" in page and "page-image-frame" in page and "history-button" in page and
-            "workbench-37" in page and "page-focus-sheet" in page and "app-header" not in page and "role=\"tablist\"" not in page and
+            "workbench-41" in page and "page-focus-sheet" in page and "app-header" not in page and "role=\"tablist\"" not in page and
             "selected-page-title" not in page and "export-scope" not in page and
             "profile-manager-new" in page and "new-profile" in page and "profile-utilities" in page and
             "save-profile" not in page,
             "deployed UI is missing the final canvas or crop controls")
     require(page.index('id="scan-progress"') < page.index('id="scan" class="button scan-button"'),
             "scan progress must render above the fixed scan button")
-    _, _, script = request(base, "/app.js?v=workbench-37")
+    _, _, script = request(base, "/app.js?v=workbench-41")
     script_text = script.decode("utf-8")
     require("Scanner connected" not in script_text and "renderPagePreview" in script_text and
             "renderThumbnailPreview" in script_text and "handleCanvasWheel" in script_text and
             "supportsAutomaticPageSize" in script_text and "labelForPageSize" in script_text and
             "openNewProfileDialog" in script_text and "setProfileOverlay" in script_text and
             "defaultDocumentTitle" in script_text and "defaultOutputStem" in script_text and
+            "rememberPageDimensions" in script_text and "naturalWidth" in script_text and
             "showModal" not in script_text and "Untitled scan" not in script_text,
             "deployed UI is missing the crop preview or still renders redundant scanner status")
+    _, _, stylesheet = request(base, "/app.css?v=workbench-41")
+    stylesheet_text = stylesheet.decode("utf-8")
+    require("object-fit: contain" in stylesheet_text and "object-fit: fill" not in stylesheet_text and
+            "width: calc(680px" not in stylesheet_text,
+            "deployed UI still forces scanned pages into Letter preview geometry")
     request(base, "/api/v1/documents/..%2Fsession.json", expected=(404,))
     request(base, f"/api/v1/profiles/{profile_id}", "DELETE", expected=(204,))
     passed("final workbench assets, path containment, and profile deletion")

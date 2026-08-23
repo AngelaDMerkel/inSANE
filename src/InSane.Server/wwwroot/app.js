@@ -5,7 +5,7 @@ const state = {
   draggedPageId: null, reorderPending: false, pageDeletePending: false, rotationPending: false,
   selectedPageIds: new Set(), selectionAnchorId: null, failedJob: null,
   cropDraft: null, cropDraftPageId: null, cropDrag: null, wheelZoomTimer: null,
-  profileOverlayReturn: "settings", profileOverlayTrigger: null
+  profileOverlayReturn: "settings", profileOverlayTrigger: null, pageDimensions: new Map()
 };
 
 async function api(path, options = {}) {
@@ -452,7 +452,13 @@ function renderPageList() {
     button.title = button.draggable
       ? "Drag to reorder · Shift-click to select a range · Backspace to remove"
       : "Shift-click to select a range";
-    button.innerHTML = `<span class="thumb-paper"><span class="thumb-image-frame"><img src="${page.thumbnailUrl}" alt=""></span><span class="page-number">${page.number}</span></span><span class="page-thumb-copy visually-hidden"><strong>Page ${page.number}</strong><small>${page.rotation ? `${page.rotation}° · ` : ""}Scanned</small></span>`;
+    button.innerHTML = `<span class="thumb-paper"><span class="thumb-image-frame"><img alt=""></span><span class="page-number">${page.number}</span></span><span class="page-thumb-copy visually-hidden"><strong>Page ${page.number}</strong><small>${page.rotation ? `${page.rotation}° · ` : ""}Scanned</small></span>`;
+    const thumbnailImage = button.querySelector(".thumb-image-frame img");
+    thumbnailImage.addEventListener("load", () => {
+      rememberPageDimensions(page, thumbnailImage);
+      if (button.isConnected) renderThumbnailPreview(button, page, thumbnailImage);
+    }, { once: true });
+    thumbnailImage.src = `${page.thumbnailUrl}?v=${encodeURIComponent(state.session.updatedAt)}`;
     renderThumbnailPreview(button, page);
     button.addEventListener("click", event => selectPage(event, page.id));
     button.addEventListener("dragstart", event => beginPageDrag(event, page.id, button));
@@ -603,6 +609,15 @@ function renderSelectedPage() {
     return;
   }
   const image = $("#page-image");
+  image.dataset.pageId = page.id;
+  image.onload = () => {
+    if (image.dataset.pageId !== page.id || selectedPage()?.id !== page.id) return;
+    rememberPageDimensions(page, image);
+    const loadedCrop = state.cropEditing
+      ? { x: 0, y: 0, width: 1, height: 1 }
+      : sourceToVisualCrop(page.crop, page.rotation || 0);
+    renderPagePreview(page, loadedCrop, image);
+  };
   image.src = `${page.imageUrl}?v=${encodeURIComponent(state.session.updatedAt)}`;
   const visualCrop = state.cropEditing
     ? { x: 0, y: 0, width: 1, height: 1 }
@@ -704,27 +719,42 @@ function isFullCrop(crop) {
   return !crop || (crop.x <= .000001 && crop.y <= .000001 && crop.width >= .999999 && crop.height >= .999999);
 }
 
-function pagePreviewMetrics(page) {
+function rememberPageDimensions(page, image) {
+  if (!image?.naturalWidth || !image?.naturalHeight) return;
+  const dimensions = { width: image.naturalWidth, height: image.naturalHeight };
+  state.pageDimensions.set(page.id, dimensions);
+  page.pixelWidth = dimensions.width;
+  page.pixelHeight = dimensions.height;
+}
+
+function pagePreviewMetrics(page, image = null) {
   const rotation = ((page.rotation || 0) % 360 + 360) % 360;
   const rotated = rotation === 90 || rotation === 270;
+  const cached = state.pageDimensions.get(page.id);
+  const pixelWidth = Number(page.pixelWidth) || cached?.width || image?.naturalWidth || 680;
+  const pixelHeight = Number(page.pixelHeight) || cached?.height || image?.naturalHeight || 880;
+  const previewScale = 880 / Math.max(pixelWidth, pixelHeight);
+  const sourceWidth = pixelWidth * previewScale;
+  const sourceHeight = pixelHeight * previewScale;
   return {
     rotation,
-    sourceWidth: 680,
-    sourceHeight: 880,
-    visualWidth: rotated ? 880 : 680,
-    visualHeight: rotated ? 680 : 880
+    pixelWidth,
+    pixelHeight,
+    sourceWidth,
+    sourceHeight,
+    visualWidth: rotated ? sourceHeight : sourceWidth,
+    visualHeight: rotated ? sourceWidth : sourceHeight
   };
 }
 
-function renderPagePreview(page, crop) {
+function renderPagePreview(page, crop, loadedImage = null) {
   const stage = $("#page-stage"), frame = $("#page-image-frame"), image = $("#page-image");
-  const metrics = pagePreviewMetrics(page), normalisedCrop = normaliseCrop(crop);
+  const metrics = pagePreviewMetrics(page, loadedImage), normalisedCrop = normaliseCrop(crop);
   const fullWidth = metrics.visualWidth * state.zoom;
   const fullHeight = metrics.visualHeight * state.zoom;
 
   stage.style.width = `${fullWidth * normalisedCrop.width}px`;
   stage.style.height = `${fullHeight * normalisedCrop.height}px`;
-  stage.style.setProperty("--zoom", state.zoom);
   stage.classList.toggle("rotated", metrics.rotation === 90 || metrics.rotation === 270);
   stage.classList.toggle("cropped", !isFullCrop(normalisedCrop));
 
@@ -737,11 +767,11 @@ function renderPagePreview(page, crop) {
   image.style.transform = `translate(-50%, -50%) rotate(${metrics.rotation}deg)`;
 }
 
-function renderThumbnailPreview(button, page) {
+function renderThumbnailPreview(button, page, loadedImage = null) {
   const paper = button.querySelector(".thumb-paper");
   const frame = button.querySelector(".thumb-image-frame");
   const image = frame.querySelector("img");
-  const metrics = pagePreviewMetrics(page);
+  const metrics = pagePreviewMetrics(page, loadedImage);
   const crop = normaliseCrop(sourceToVisualCrop(page.crop, metrics.rotation));
   const viewportWidth = 40, viewportHeight = 54;
   const scale = Math.min(
@@ -1048,7 +1078,7 @@ async function newSession() {
   if (state.activeJob) return toast("Finish or cancel the current scan first", true);
   try {
     state.session = await api("/api/v1/sessions", { method: "POST", body: JSON.stringify({ title: null }) });
-    state.selectedPageId = null; state.selectedPageIds.clear(); state.selectionAnchorId = null;
+    state.selectedPageId = null; state.selectedPageIds.clear(); state.selectionAnchorId = null; state.pageDimensions.clear();
     stopCropEditing(); state.outputNameTouched = false;
     renderSession(); setTab("inspector"); toast("New document started");
   } catch (error) { showError(error); }

@@ -190,6 +190,9 @@ public sealed class Naps2ScannerBackend : IScannerBackend
             }
             options.Dpi = settings.Resolution;
             options.BitDepth = ParseBitDepth(settings.BitDepth);
+            // Fixed paper sizes should determine the captured and exported geometry. NAPS2 crops
+            // scanner overscan to the requested size without stretching the image.
+            options.CropToPageSize = !automaticallySizePage;
             options.AutoDeskew = settings.AutoDeskew;
             options.ExcludeBlankPages = settings.DiscardBlankPages;
             options.FlipDuplexedPages = settings.FlipDuplexBacks;
@@ -328,8 +331,8 @@ public sealed class DemoScannerBackend : IScannerBackend
                 await Task.Delay(45, cancellationToken);
             }
             var path = allocatePagePath(page);
-            await CreateDemoPageAsync(path, page, settings.PageSize.Equals("auto", StringComparison.OrdinalIgnoreCase),
-                cancellationToken);
+            await CreateDemoPageAsync(path, page, settings.PageSize,
+                settings.PageSize.Equals("auto", StringComparison.OrdinalIgnoreCase), cancellationToken);
             if (settings.PageSize.Equals("auto", StringComparison.OrdinalIgnoreCase))
             {
                 await AutomaticPageSizeDetector.TrimScannerBackgroundAsync(path, cancellationToken);
@@ -338,11 +341,15 @@ public sealed class DemoScannerBackend : IScannerBackend
         }
     }
 
-    private static async Task CreateDemoPageAsync(string path, int page, bool includeScannerBackground,
+    private static async Task CreateDemoPageAsync(string path, int page, string pageSize, bool includeScannerBackground,
         CancellationToken cancellationToken)
     {
-        const int width = 850;
-        const int pageHeight = 1100;
+        var (width, pageHeight) = pageSize.ToLowerInvariant() switch
+        {
+            "legal" => (850, 1400),
+            "a4" => (827, 1169),
+            _ => (850, 1100)
+        };
         var imageHeight = includeScannerBackground ? 1400 : pageHeight;
         using var image = new Image<Rgb24>(width, imageHeight, includeScannerBackground ? Color.Black : Color.White);
         image.Metadata.HorizontalResolution = 100;

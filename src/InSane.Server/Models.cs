@@ -109,6 +109,8 @@ public sealed class DocumentPage
     [JsonIgnore]
     public string FilePath { get; set; } = "";
     public string FileName { get; set; } = "";
+    public int PixelWidth { get; set; }
+    public int PixelHeight { get; set; }
     public int Rotation { get; set; }
     public CropRegion Crop { get; set; } = new();
     public DateTimeOffset CapturedAt { get; set; } = DateTimeOffset.UtcNow;
