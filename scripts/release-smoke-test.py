@@ -194,6 +194,8 @@ def main() -> int:
         dimensions = jpeg_dimensions(image)
         require(dimensions == (850, 1100),
                 f"automatic paper sizing did not remove the demo scanner background: {dimensions}")
+        require((page["pixelWidth"], page["pixelHeight"]) == dimensions,
+                f"page metadata does not match the scanned image dimensions: {page}")
     passed("asynchronous duplex scan, automatic paper sizing, and live page images")
 
     original_ids = [page["id"] for page in session["pages"]]
@@ -305,10 +307,16 @@ def main() -> int:
     poll_job(base, cancel_job["id"], terminal=("cancelled",))
 
     delete_session = create_session(base, "Page deletion release gate")
-    feeder_settings = {**settings, "paperSource": "feeder"}
+    feeder_settings = {**settings, "paperSource": "feeder", "pageSize": "legal"}
     delete_job = start_scan(base, delete_session["id"], feeder_settings)
     poll_job(base, delete_job["id"])
     _, _, delete_session = request_json(base, f"/api/v1/sessions/{delete_session['id']}")
+    require(all((page["pixelWidth"], page["pixelHeight"]) == (850, 1400)
+                for page in delete_session["pages"]),
+            "Legal demo pages did not preserve their scanned image dimensions")
+    _, _, legal_image = request(base, delete_session["pages"][0]["imageUrl"])
+    require(jpeg_dimensions(legal_image) == (850, 1400),
+            "Legal demo page image dimensions do not match the page metadata")
     page_to_delete = delete_session["pages"][0]["id"]
     request(base, f"/api/v1/sessions/{delete_session['id']}/pages/{page_to_delete}", "DELETE",
             expected=(204,))
@@ -321,22 +329,28 @@ def main() -> int:
     require("canvas-viewport" in page and "page-focus-row" in page and "inspector-rows" in page and
             "page-carousel" in page and "crop-apply-selected" in page and
             "sidebar-brand" in page and "page-image-frame" in page and "history-button" in page and
-            "workbench-37" in page and "page-focus-sheet" in page and "app-header" not in page and "role=\"tablist\"" not in page and
+            "workbench-38" in page and "page-focus-sheet" in page and "app-header" not in page and "role=\"tablist\"" not in page and
             "selected-page-title" not in page and "export-scope" not in page and
             "profile-manager-new" in page and "new-profile" in page and "profile-utilities" in page and
             "save-profile" not in page,
             "deployed UI is missing the final canvas or crop controls")
     require(page.index('id="scan-progress"') < page.index('id="scan" class="button scan-button"'),
             "scan progress must render above the fixed scan button")
-    _, _, script = request(base, "/app.js?v=workbench-37")
+    _, _, script = request(base, "/app.js?v=workbench-38")
     script_text = script.decode("utf-8")
     require("Scanner connected" not in script_text and "renderPagePreview" in script_text and
             "renderThumbnailPreview" in script_text and "handleCanvasWheel" in script_text and
             "supportsAutomaticPageSize" in script_text and "labelForPageSize" in script_text and
             "openNewProfileDialog" in script_text and "setProfileOverlay" in script_text and
             "defaultDocumentTitle" in script_text and "defaultOutputStem" in script_text and
+            "rememberPageDimensions" in script_text and "naturalWidth" in script_text and
             "showModal" not in script_text and "Untitled scan" not in script_text,
             "deployed UI is missing the crop preview or still renders redundant scanner status")
+    _, _, stylesheet = request(base, "/app.css?v=workbench-38")
+    stylesheet_text = stylesheet.decode("utf-8")
+    require("object-fit: contain" in stylesheet_text and "object-fit: fill" not in stylesheet_text and
+            "width: calc(680px" not in stylesheet_text,
+            "deployed UI still forces scanned pages into the legacy Letter preview geometry")
     request(base, "/api/v1/documents/..%2Fsession.json", expected=(404,))
     request(base, f"/api/v1/profiles/{profile_id}", "DELETE", expected=(204,))
     passed("final workbench assets, path containment, and profile deletion")

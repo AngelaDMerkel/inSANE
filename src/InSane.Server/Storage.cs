@@ -110,6 +110,7 @@ public sealed class SessionStore
 
     public async Task<DocumentPage> AddPageAsync(Guid sessionId, Guid pageId, string path)
     {
+        var imageInfo = SixLabors.ImageSharp.Image.Identify(path);
         DocumentPage? page = null;
         await UpdateAsync(sessionId, session =>
         {
@@ -117,7 +118,9 @@ public sealed class SessionStore
             {
                 Id = pageId,
                 Number = session.Pages.Count + 1,
-                FileName = Path.GetFileName(path)
+                FileName = Path.GetFileName(path),
+                PixelWidth = imageInfo.Width,
+                PixelHeight = imageInfo.Height
             };
             session.Pages.Add(page);
         });
@@ -197,6 +200,8 @@ public sealed class SessionStore
                     Id = pageId,
                     Number = index + 1,
                     FileName = Path.GetFileName(path),
+                    PixelWidth = sourcePage.PixelWidth,
+                    PixelHeight = sourcePage.PixelHeight,
                     Rotation = sourcePage.Rotation,
                     Crop = new CropRegion
                     {
@@ -243,6 +248,19 @@ public sealed class SessionStore
         foreach (var page in session.Pages)
         {
             page.FilePath = _paths.PageFile(session.Id, page.FileName);
+            if ((page.PixelWidth <= 0 || page.PixelHeight <= 0) && File.Exists(page.FilePath))
+            {
+                try
+                {
+                    var imageInfo = SixLabors.ImageSharp.Image.Identify(page.FilePath);
+                    page.PixelWidth = imageInfo.Width;
+                    page.PixelHeight = imageInfo.Height;
+                }
+                catch (Exception ex) when (ex is IOException or UnknownImageFormatException or InvalidImageContentException or NotSupportedException)
+                {
+                    // Legacy or damaged pages retain the browser's natural-dimension fallback.
+                }
+            }
             page.ImageUrl = $"/api/v1/sessions/{session.Id}/pages/{page.Id}/image";
             page.ThumbnailUrl = page.ImageUrl;
         }
